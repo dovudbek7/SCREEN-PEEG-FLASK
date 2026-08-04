@@ -285,6 +285,24 @@ SHEET01_GROUPS = [
 # COL01_OH_BEFORE_EXP_START..COL01_OH_AFTER_CHECK) を3段見出しにするための
 # 追加行 (客先要望 2026-07-22: 統合前のグループ区分が一目で分かるようにして
 # ほしい). 各リストは41列全体をカバーする (ラベル空文字は空白セル).
+def _group_class_map(groups: list[tuple[str, int]]) -> dict[int, str]:
+    """列インデックス -> 区分クラス名 (g0..gN). 区分の先頭列には gstart も付ける.
+
+    2026-08-05 客先依頼: 5つの区分の切れ目が見やすいよう, 区分ごとに
+    データの背景色を変える (CSS の .g0〜 と .gstart を参照).
+    """
+    mapping: dict[int, str] = {}
+    col = 0
+    for gi, (_label, span) in enumerate(groups):
+        for k in range(span):
+            cls = f"g{gi}"
+            if k == 0 and gi > 0:
+                cls += " gstart"
+            mapping[col] = cls
+            col += 1
+    return mapping
+
+
 SHEET01_OH_TIER_A = [
     ("", 12),
     ("定時前（9:00までの時間）", 4),
@@ -443,9 +461,13 @@ def _header_rows_html_with_sub_tiers(header: list[str], groups: list, tr: dict,
                 is_blank_col[j] = True
         pos += span
 
+    gcls = _group_class_map(groups)
+
     def leaf_th(i: int, rowspan: int = 1) -> str:
         h = header[i]
         cls_parts = []
+        if i in gcls:
+            cls_parts.append(gcls[i])
         if i in narrow_cols:
             cls_parts.append("col-narrow")
         if rowspan > 1:
@@ -526,6 +548,8 @@ def _build_table(header: list[str], rows: list[list[str]], sheet_id: str,
     match_col = header.index("照合状態") if sheet_id == "02" and "照合状態" in header else -1
     # 単一ステータス列を持つ他シート (客先要望 2026-07-13: フィルタを全シートへ展開)
     simple_status_col = {"02": match_col, "03": 3, "04": 4, "05": 4}.get(sheet_id, -1)
+    # 列インデックス -> 区分クラス (背景色の塗り分け用). groups が無いシートは空。
+    body_gcls = _group_class_map(groups) if groups else {}
     # 01シートの日単位展開でグループ (伝票) を追跡するための可変ホルダ
     _sheet01_group = [""]
     tr_html_parts = []
@@ -542,7 +566,12 @@ def _build_table(header: list[str], rows: list[list[str]], sheet_id: str,
             raw_val = str(row[i]) if i < len(row) else ""
             translated = _translate_cell_val(raw_val, i18n) if i18n else raw_val
             full_attr = f' data-full="{html.escape(translated)}"' if translated else ""
-            cls_attr = ' class="col-narrow"' if i in narrow_cols else ""
+            cls_parts = []
+            if i in body_gcls:
+                cls_parts.append(body_gcls[i])
+            if i in narrow_cols:
+                cls_parts.append("col-narrow")
+            cls_attr = f' class="{" ".join(cls_parts)}"' if cls_parts else ""
             inner = _cell_html(raw_val, i, sheet_id, i18n, voucher_no, match_col)
             cells.append(f'<td{full_attr}{cls_attr}>{inner}</td>')
         tds = "".join(cells)
@@ -1324,12 +1353,44 @@ tr.date-band td {
   text-align: center;
   vertical-align: middle;
 }
+.data-tbl tbody tr:nth-child(even) { background: var(--stripe); }
+.data-tbl tbody tr:hover { background: #eff6ff; }
+/* ── 区分ごとの塗り分け (客先要望 2026-08-05: 5区分の切れ目を見やすく) ──
+   半透明 (rgba) にしているのは, 行の縞模様とホバーを潰さないため.
+   区分の先頭列には左に縦罫を入れて境界をはっきりさせる. */
+.data-tbl tbody td.g0 { background: transparent; }                 /* No.〜所属 (区分外) */
+.data-tbl tbody td.g1 { background: rgba(100,116,139,.13); }       /* 承認状況 */
+.data-tbl tbody td.g2 { background: rgba(59,130,246,.16); }        /* 1. 出張実態の確認 */
+.data-tbl tbody td.g3 { background: rgba(16,185,129,.16); }        /* 2. 労務・健康管理の確認 */
+.data-tbl tbody td.g4 { background: rgba(245,158,11,.20); }        /* 3. 出張費・宿泊費上限確認 */
+.data-tbl tbody td.g5 { background: rgba(167,139,250,.20); }       /* 4. 全体チェック */
+.data-tbl tbody td.g6 { background: rgba(100,116,139,.13); }       /* 詳細 */
+.data-tbl tbody td.gstart { border-left: 2px solid rgba(27,47,110,.3); }
+.data-tbl thead th.gstart { border-left: 2px solid rgba(255,255,255,.5); }
+/* 見出し側も同じ色味を薄く乗せて, どの列がどの区分かひと目で分かるようにする */
+.data-tbl thead tr:last-child th.g1 { background: #2b3f7a; }
+.data-tbl thead tr:last-child th.g2 { background: #24407f; }
+.data-tbl thead tr:last-child th.g3 { background: #17456a; }
+.data-tbl thead tr:last-child th.g4 { background: #4a3f6b; }
+.data-tbl thead tr:last-child th.g5 { background: #3a2f6e; }
+.data-tbl thead tr:last-child th.g6 { background: #2b3f7a; }
+/* 列ハイライトとホバーは区分色より優先させる (この順序が重要) */
 .data-tbl tbody td.col-hl { background: #dbeafe; }
 .data-tbl tbody tr:hover td.col-hl { background: #bfdbfe; }
 .data-tbl tbody td.col-hl-preview { background: #eff6ff; }
 .data-tbl tbody tr:hover td.col-hl-preview { background: #dbeafe; }
-.data-tbl tbody tr:nth-child(even) { background: var(--stripe); }
-.data-tbl tbody tr:hover { background: #eff6ff; }
+/* ── 行の選択 (客先要望 2026-08-05: クリックした行を固定表示して見失わないように) ──
+   区分色・ホバー・列ハイライトより後に置いて, 選択状態が最優先で見えるようにする. */
+.data-tbl tbody tr.row-selected td,
+.data-tbl tbody tr.row-selected:hover td,
+.data-tbl tbody tr.row-selected td.col-hl,
+.data-tbl tbody tr.row-selected:hover td.col-hl {
+  background: #fef3c7;
+}
+.data-tbl tbody tr.row-selected td:first-child {
+  box-shadow: inset 3px 0 0 0 #d97706;
+}
+.data-tbl tbody tr.row-selected td { cursor: default; }
 .data-tbl tbody td {
   padding: 6px 12px;
   border-bottom: 1px solid #e5e7eb;
@@ -1349,10 +1410,12 @@ tr.date-band td {
   text-overflow: ellipsis;
 }
 .data-tbl tbody tr.hidden { display: none; }
-/* ── 複数日の伝票: 2日目以降の行 (2026-08-04 客先依頼で常時表示) ── */
-/* 繰り返しの識別列を淡色にして, 先頭日の行と見分けやすくする */
-.data-tbl tbody tr.grp-day td { color: #94a3b8; }
-.data-tbl tbody tr.grp-day td .badge { opacity: 0.9; }
+/* ── 複数日の伝票: 2日目以降の行 ──
+   2026-08-04 客先依頼で常時表示に変更。
+   2026-08-05 客先依頼: 2日目以降も文字を淡色にせず, 1日目と同じ濃さにする。
+   代わりに伝票の先頭行の上に太い罫線を引き, どこから次の伝票かを示す。 */
+.data-tbl tbody tr[data-grphead="1"] td { border-top: 2px solid rgba(27,47,110,.28); }
+.data-tbl tbody tr:first-child td { border-top: none; }
 .data-tbl tbody td[data-full] { cursor: help; }
 .data-tbl thead th[data-full] { cursor: help; }
 /* ── Badges ── */
@@ -1685,9 +1748,29 @@ document.addEventListener('click', e => {
   }
 });
 
+// ── 行クリックで選択状態を固定する (客先要望 2026-08-05) ──
+// セルのツールチップ側 (document の click) が stopPropagation するため,
+// より内側の tbody に委譲して先に処理させる。
+// もう一度同じ行をクリックすると解除。1つの表につき1行だけ選択する。
+function initRowSelect() {
+  document.querySelectorAll('.data-tbl tbody').forEach(tbody => {
+    tbody.addEventListener('click', e => {
+      // 詳細へのリンク等の操作は邪魔しない
+      if (e.target.closest('a, button, input, select')) return;
+      const tr = e.target.closest('tr');
+      if (!tr || tr.classList.contains('date-band')) return;
+      const already = tr.classList.contains('row-selected');
+      tbody.querySelectorAll('tr.row-selected')
+           .forEach(x => x.classList.remove('row-selected'));
+      if (!already) tr.classList.add('row-selected');
+    });
+  });
+}
+
 // init
 showTab('01');
 regroupDates('02');
+initRowSelect();
 """
 
 
