@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>出張精算 承認チェックシート 自動生成</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      :root {
+        --navy: #1b2f6e; --navy-dk: #14245a; --accent: #3a5bc7;
+        --stripe: #f4f6fb; --border: #d0d8ec; --text: #1a1a2e; --muted: #5a6380;
+        --ok: #1a7a4a; --ok-bg: #e8f5ee; --warn: #b7720a; --warn-bg: #fff6e8;
+        --ng: #c0392b; --ng-bg: #fdecea; --gray: #6b7280; --gray-bg: #f1f2f4;
+        --radius: 8px;
+      }
+      body {
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+        font-size: 14px; line-height: 1.7; color: var(--text);
+        background: var(--stripe); min-height: 100vh; padding: 32px 16px;
+      }
+      .wrap { max-width: 760px; margin: 0 auto; }
+      header {
+        background: var(--navy); color: #fff; border-radius: var(--radius) var(--radius) 0 0;
+        padding: 28px 32px;
+      }
+      header h1 { font-size: 20px; font-weight: 700; letter-spacing: .02em; }
+      header p { font-size: 13px; color: rgba(255,255,255,.75); margin-top: 6px; }
+      .head-row { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+      .head-row > div { flex: 1; min-width: 220px; }
+      .manual-btn {
+        flex-shrink: 0; padding: 8px 16px; border-radius: 6px;
+        border: 1px solid rgba(255,255,255,.45); color: #fff;
+        text-decoration: none; font-size: 12.5px; font-weight: 700;
+        white-space: nowrap; transition: background .15s;
+      }
+      .manual-btn:hover { background: rgba(255,255,255,.15); }
+      .card {
+        background: #fff; border-radius: 0 0 var(--radius) var(--radius);
+        padding: 28px 32px 32px; box-shadow: 0 2px 12px rgba(27,47,110,.08);
+      }
+      .field { margin-bottom: 22px; }
+      .field label {
+        display: block; font-weight: 700; font-size: 13px;
+        color: var(--navy-dk); margin-bottom: 6px;
+      }
+      .field .hint { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+      input[type=file] {
+        width: 100%; padding: 14px; font-size: 13px;
+        border: 2px dashed var(--border); border-radius: var(--radius);
+        background: #fafbff; cursor: pointer;
+      }
+      input[type=file]:hover { border-color: var(--accent); background: #f4f7ff; }
+      button {
+        width: 100%; padding: 14px; font-size: 15px; font-weight: 700;
+        color: #fff; background: var(--navy); border: none;
+        border-radius: var(--radius); cursor: pointer; transition: background .15s;
+      }
+      button:hover { background: var(--navy-dk); }
+      button:disabled { background: #9aa4bf; cursor: progress; }
+      .note, .warn, .error {
+        padding: 12px 16px; border-radius: 0 var(--radius) var(--radius) 0;
+        font-size: 12.5px; margin-bottom: 20px;
+      }
+      .note  { background: #f0f4ff; border-left: 3px solid var(--accent); color: var(--muted); }
+      .warn  { background: var(--warn-bg); border-left: 3px solid #d99a1f; color: #6b4e10; }
+      .error { background: var(--ng-bg); border-left: 3px solid var(--ng); color: #922b21; font-weight: 600; }
+      .result { margin-top: 28px; padding-top: 24px; border-top: 2px solid var(--border); }
+      .result h2 { font-size: 15px; color: var(--navy); margin-bottom: 14px; }
+      .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
+      .stat {
+        flex: 1; min-width: 92px; text-align: center;
+        padding: 12px 8px; border-radius: var(--radius); border: 1px solid var(--border);
+      }
+      .stat .n { font-size: 22px; font-weight: 700; line-height: 1.2; }
+      .stat .l { font-size: 11px; color: var(--muted); margin-top: 2px; }
+      .stat.ok   { background: var(--ok-bg);   border-color: #b6e0c8; }
+      .stat.ok   .n { color: var(--ok); }
+      .stat.warn { background: var(--warn-bg); border-color: #f0d9a8; }
+      .stat.warn .n { color: var(--warn); }
+      .stat.ng   { background: var(--ng-bg);   border-color: #f2c1bb; }
+      .stat.ng   .n { color: var(--ng); }
+      .stat.gray { background: var(--gray-bg); border-color: #dcdfe4; }
+      .stat.gray .n { color: var(--gray); }
+      .dl { display: block; padding: 13px 16px; margin-bottom: 8px;
+            border: 1px solid var(--border); border-radius: var(--radius);
+            background: #fafbff; text-decoration: none; color: var(--text);
+            font-size: 13px; transition: background .12s, border-color .12s; }
+      .dl:hover { background: #eef2ff; border-color: var(--accent); }
+      .dl .ico { color: var(--accent); font-weight: 700; margin-right: 8px; }
+      details { margin-top: 18px; }
+      summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+      pre {
+        margin-top: 10px; padding: 14px; background: #1f2430; color: #d7dce8;
+        border-radius: var(--radius); font-size: 11.5px; line-height: 1.6;
+        overflow-x: auto; white-space: pre-wrap; word-break: break-all;
+      }
+      .spinner { display: none; text-align: center; padding: 20px; color: var(--muted); font-size: 13px; }
+      .spinner.on { display: block; }
+      .spinner::before {
+        content: ""; display: inline-block; width: 16px; height: 16px;
+        margin-right: 8px; vertical-align: -3px;
+        border: 2px solid var(--border); border-top-color: var(--accent);
+        border-radius: 50%; animation: spin .8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      footer { text-align: center; font-size: 11.5px; color: var(--muted); margin-top: 20px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div class="head-row">
+          <div>
+            <h1>出張精算 承認チェックシート 自動生成</h1>
+            <p>2つのファイルをアップロードすると、チェックシートを作成します</p>
+          </div>
+          <a class="manual-btn" href="{{ url_for('manual') }}" target="_blank" rel="noopener">
+            操作マニュアル
+          </a>
+        </div>
+      </header>
+
+      <div class="card">
+        {% if error %}
+          <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <div class="warn">
+          <b>出張精算CSVと出勤簿は、必ず同じ期間のものを組み合わせてください。</b>
+          出張日の勤怠が出勤簿側に無い場合、その申請は「未確認（勤怠データ欠落）」となり判定できません。
+        </div>
+
+        <form method="post" action="{{ url_for('run') }}" enctype="multipart/form-data" id="form">
+          <div class="field">
+            <label for="expense">① 出張精算CSV</label>
+            <div class="hint">楽々精算からエクスポートしたCSVファイル</div>
+            <input type="file" id="expense" name="expense" accept=".csv" required />
+          </div>
+
+          <div class="field">
+            <label for="attendance">② 出勤簿xlsx</label>
+            <div class="hint">楽々勤怠からエクスポートしたExcelファイル</div>
+            <input type="file" id="attendance" name="attendance" accept=".xlsx,.xls" required />
+          </div>
+
+          <button type="submit" id="submit">チェックシートを作成する</button>
+        </form>
+
+        <div class="spinner" id="spinner">処理中です。20秒ほどお待ちください…</div>
+
+        {% if files %}
+          <div class="result">
+            <h2>作成が完了しました</h2>
+
+            {% if summary %}
+              <div class="stats">
+                {% for label, count in summary %}
+                  <div class="stat {% if label == 'OK' %}ok{% elif label == 'NG' %}ng{% elif '未確認' in label %}gray{% else %}warn{% endif %}">
+                    <div class="n">{{ count }}</div>
+                    <div class="l">{{ label }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            {% for f in files %}
+              <a class="dl" href="{{ url_for('download', job_id=job_id, stamp=stamp, filename=f) }}">
+                <span class="ico">{% if f.endswith('.xlsx') %}XLSX{% else %}HTML{% endif %}</span>{{ f }}
+              </a>
+            {% endfor %}
+
+            <div class="note" style="margin-top:16px">
+              ダウンロードリンクは6時間で無効になります。必要なファイルは保存してください。
+            </div>
+          </div>
+        {% endif %}
+
+        {% if log %}
+          <details {% if error %}open{% endif %}>
+            <summary>実行ログを表示</summary>
+            <pre>{{ log }}</pre>
+          </details>
+        {% endif %}
+      </div>
+
+      <footer>判定の詳細はマニュアルをご確認ください</footer>
+    </div>
+
+    <script>
+      document.getElementById('form').addEventListener('submit', function () {
+        document.getElementById('submit').disabled = true;
+        document.getElementById('submit').textContent = '処理中…';
+        document.getElementById('spinner').classList.add('on');
+      });
+    </script>
+  </body>
+</html>

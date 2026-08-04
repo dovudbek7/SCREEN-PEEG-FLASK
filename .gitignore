@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Web アプリの作業フォルダ (実行時に生成)
+jobs/

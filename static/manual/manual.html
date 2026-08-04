@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>操作マニュアル（完全版） — 出張精算 承認チェックシート 自動生成</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap");
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      :root {
+        --navy: #1b2f6e; --navy-dk: #14245a; --accent: #3a5bc7;
+        --stripe: #f4f6fb; --border: #d0d8ec; --text: #1a1a2e; --muted: #5a6380; --radius: 6px;
+      }
+      body {
+        font-family: "Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+        font-size: 13px; line-height: 1.7; color: var(--text);
+        background: #fff; max-width: 900px; margin: 0 auto; padding: 40px 48px;
+      }
+      .doc-header {
+        text-align: center; padding: 36px 24px 28px; background: var(--navy);
+        border-radius: var(--radius); margin-bottom: 32px; color: #fff;
+      }
+      .doc-header h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 8px; }
+      .doc-header .subtitle { font-size: 13px; color: rgba(255,255,255,0.75); }
+      section { margin-bottom: 36px; }
+      h2 {
+        font-size: 15px; font-weight: 700; color: var(--navy);
+        padding: 8px 0 6px; border-bottom: 2px solid var(--navy); margin-bottom: 14px;
+      }
+      h3 { font-size: 13px; font-weight: 700; color: var(--navy-dk); margin: 18px 0 8px; }
+      p { margin-bottom: 12px; word-wrap: break-word; overflow-wrap: break-word; }
+      ol, ul { margin: 0 0 12px 22px; }
+      li { margin-bottom: 6px; }
+      .tbl-wrap {
+        overflow-x: auto; border-radius: var(--radius);
+        box-shadow: 0 1px 4px rgba(27,47,110,0.1); margin-bottom: 4px;
+      }
+      table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+      thead tr { background: var(--navy); color: #fff; }
+      thead th { padding: 10px 14px; text-align: left; font-weight: 600; white-space: nowrap; }
+      tbody tr:nth-child(even) { background: var(--stripe); }
+      tbody tr:hover { background: #ebf0ff; }
+      tbody td { padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: top; word-break: break-word; }
+      code { background: #eef2ff; color: var(--accent); padding: 1px 5px; border-radius: 3px; font-family: "Menlo","Consolas",monospace; font-size: 11.5px; }
+      .note { background: #f0f4ff; border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 var(--radius) var(--radius) 0; margin-top: 10px; font-size: 12px; color: var(--muted); }
+      .warn { background: #fff6e8; border-left: 3px solid #d99a1f; padding: 10px 14px; border-radius: 0 var(--radius) var(--radius) 0; margin-top: 10px; font-size: 12px; color: #6b4e10; }
+      .step-num {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 22px; height: 22px; border-radius: 50%; background: var(--navy);
+        color: #fff; font-size: 12px; font-weight: 700; margin-right: 8px;
+      }
+      .ok  { color: #1a7a4a; font-weight: 600; }
+      .ng  { color: #c0392b; font-weight: 600; }
+      .chk { color: #b7720a; font-weight: 600; }
+      .gray { color: #6b7280; font-weight: 600; }
+      .req { color: #c0392b; font-weight: 700; }
+      .opt { color: #6b7280; }
+      .flow-wrap { margin: 4px 0 24px; }
+      .flow-legend { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 11px; color: var(--muted); }
+      .legend-badge { padding: 2px 10px; border-radius: 10px; font-weight: 700; color: #fff; font-size: 10px; }
+      .legend-badge.manual { background: #8a93a6; }
+      .legend-badge.auto { background: var(--accent); }
+      .chevron-row { display: flex; }
+      .chevron {
+        flex: 1; min-width: 0; position: relative; color: #fff; font-weight: 700; font-size: 12px;
+        text-align: center; padding: 12px 14px 12px 30px; line-height: 1.4;
+      }
+      .chevron.manual { background: #8a93a6; }
+      .chevron.auto { background: var(--accent); }
+      .chevron:first-child {
+        clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
+        padding-left: 16px;
+      }
+      .chevron:not(:first-child) {
+        clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%, 16px 50%);
+        margin-left: -14px;
+      }
+      .chevron:last-child {
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 16px 50%);
+      }
+      .chevron code { background: rgba(255,255,255,0.25); color: #fff; }
+      .flow-body { display: flex; border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
+      .flow-cell { flex: 1; padding: 18px 14px 16px; text-align: center; border-right: 1px solid var(--border); background: #fff; }
+      .flow-cell:last-child { border-right: none; }
+      .flow-icon { width: 42px; height: 42px; margin: 0 auto 12px; color: var(--navy); }
+      .flow-cell.auto .flow-icon { color: var(--accent); }
+      .flow-cell ul { text-align: left; font-size: 10.5px; color: var(--muted); margin: 0; padding-left: 16px; line-height: 1.6; }
+      .flow-cell li { margin-bottom: 3px; }
+      @media (max-width: 640px) {
+        .chevron-row, .flow-body { flex-direction: column; }
+        .chevron:not(:first-child) { margin-left: 0; margin-top: -1px; }
+        .chevron, .chevron:first-child, .chevron:last-child { clip-path: none; padding-left: 14px; }
+        .flow-cell { border-right: none; border-bottom: 1px solid var(--border); }
+      }
+      @media print {
+        .chevron-row, .flow-body { flex-wrap: nowrap; }
+      }
+      @media print {
+        body { padding: 20mm 22mm; max-width: 100%; font-size: 11px; }
+        .doc-header, thead tr, tbody tr:nth-child(even),
+        .chevron, .legend-badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .tbl-wrap { overflow: visible; box-shadow: none; }
+        section { page-break-inside: avoid; }
+        h2 { page-break-after: avoid; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="doc-header">
+      <h1>操作マニュアル（完全版）</h1>
+      <div class="subtitle">出張精算 承認チェックシート 自動生成システム</div>
+    </div>
+
+    <section>
+      <h2>1. プロジェクト構成（概要）</h2>
+      <p>プロジェクトフォルダ内には以下があります。運用担当者が日常的に触るのは
+      <code>expenses/</code>、<code>attendance/</code>、<code>run.command</code>/<code>run.bat</code> のみです。
+      それ以外はシステム内部の仕組みです。</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>フォルダ／ファイル</th><th>内容</th><th>頻度</th><th>使用者</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>src/</code></td><td>プログラムのコード一式。<code>main.py</code> がメインプログラム。</td><td class="gray">触らない</td><td class="gray">—（システム内部）</td></tr>
+            <tr><td><code>expenses/</code></td><td>楽々精算からエクスポートした出張精算CSVを毎月ここに配置</td><td class="req">毎月</td><td>運用担当者</td></tr>
+            <tr><td><code>attendance/</code></td><td>楽々勤怠からエクスポートした出勤簿xlsxを毎月ここに配置</td><td class="req">毎月</td><td>運用担当者</td></tr>
+            <tr><td><code>出張精算データ一式/顧客・社員リスト/</code></td><td>社員リスト・顧客リスト（パスワード保護xlsx）</td><td class="chk">変更時のみ</td><td>マスタ管理担当者</td></tr>
+            <tr><td><code>出張精算データ一式/</code>（直下）</td><td>承認者一覧xlsx（<code>...評価者・承認者一覧...xlsx</code>）</td><td class="chk">変更時のみ</td><td>マスタ管理担当者</td></tr>
+            <tr><td><code>出張精算データ一式/</code>（配下の任意の階層）</td><td>手当マスタCSV（<code>手当マスタ_*.csv</code>）— 日当の手当コードと金額の対応表。<span class="opt">任意</span>：無い場合も従来ロジックで動作します</td><td class="chk">変更時のみ</td><td>マスタ管理担当者</td></tr>
+            <tr><td><code>run.command</code> / <code>run.bat</code></td><td>実行ボタン（Mac / Windows）</td><td class="req">毎月</td><td>運用担当者</td></tr>
+            <tr><td><code>out/</code></td><td>結果の出力先。実行のたびに日時付きの新しいフォルダが作られ、Excelチェックシート＋HTMLレポートが出力される</td><td class="gray">毎月（閲覧のみ）</td><td>一次承認者</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>2. 全体の流れ</h2>
+      <p>月次の運用は3ステップのみです。②はシステムが自動で処理します。</p>
+
+      <div class="flow-wrap">
+        <div class="flow-legend">
+          【凡例】
+          <span class="legend-badge manual">手動</span>
+          <span class="legend-badge auto">自動</span>
+        </div>
+        <div class="chevron-row">
+          <div class="chevron manual">① ファイル配置</div>
+          <div class="chevron auto">② 自動突合・判定・チェックシート作成</div>
+          <div class="chevron manual">③ 一次承認者による確認</div>
+        </div>
+        <div class="flow-body">
+          <div class="flow-cell">
+            <svg class="flow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.5l2 2H19a2 2 0 0 1 2 2v8.5A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/>
+              <path d="M12 10.5v6"/>
+              <path d="M9.2 13.7 12 16.5l2.8-2.8"/>
+            </svg>
+            <ul>
+              <li>楽々精算・楽々勤怠からファイルをDL</li>
+              <li><code>expenses/</code>・<code>attendance/</code> へ配置</li>
+            </ul>
+          </div>
+          <div class="flow-cell auto">
+            <svg class="flow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.5 11a8.5 8.5 0 0 0-15.9-3.5"/>
+              <path d="M3.5 13a8.5 8.5 0 0 0 15.9 3.5"/>
+              <path d="M3.5 4v4.2h4.2"/>
+              <path d="M20.5 20v-4.2h-4.2"/>
+            </svg>
+            <ul>
+              <li><code>run.command</code> / <code>run.bat</code> を実行</li>
+              <li>2ファイルを自動突合</li>
+              <li>6観点でチェック判定</li>
+              <li>Excelチェックシート＋HTMLレポートを自動生成</li>
+            </ul>
+          </div>
+          <div class="flow-cell">
+            <svg class="flow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6.5" y="4" width="11" height="16.5" rx="2"/>
+              <path d="M9.5 4V3.2A1.2 1.2 0 0 1 10.7 2h2.6a1.2 1.2 0 0 1 1.2 1.2V4"/>
+              <path d="M9.3 12.3 11.2 14.2 15 10.4"/>
+            </svg>
+            <ul>
+              <li><code>out/</code> フォルダを開く</li>
+              <li>Excel、またはHTMLレポートをブラウザで開いて確認</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>ステップ</th><th>内容</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>① ファイル配置</td><td>楽々精算・楽々勤怠から出力したファイルを <code>expenses/</code>・<code>attendance/</code> へ配置</td></tr>
+            <tr><td>② 突合・判定・チェックシート作成</td><td>ファイルを自動突合し、6観点で判定、Excelチェックシート（7シート）＋HTMLレポートを自動生成</td></tr>
+            <tr><td>③ 一次承認者による確認</td><td>出力フォルダを開き、Excelまたはブラウザで生成されたチェックシートを確認</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>3. ① 配置するファイルと、必要な列</h2>
+      <p>
+        この章では、毎月 <code>expenses/</code>・<code>attendance/</code> に配置する2つのファイルについて、
+        <b>システムが何を読み取るか</b>を説明します。まず、ファイルを配置するうえでのポイントは次の4点です。
+      </p>
+      <ul>
+        <li><b>ファイル名は問いません。</b>システムがフォルダ内から自動でファイルを抽出するためです
+            （出張精算CSVは最新1件、出勤簿はフォルダ内すべてを読み込みます）。</li>
+        <li><b>列の並び順も問いません。</b>システムは列見出しの名前で列を探すためです。</li>
+        <li><b>列見出し（ヘッダ）の名前だけは、正確に一致している必要があります。</b>
+            見出しが変わっていると、システムがその列を見つけられません。</li>
+        <li><b>楽々精算・楽々勤怠からそのままエクスポートすれば、見出しは自動的に正しくなります。</b>
+            問題が起きるのは、ファイルを手動で開いて列名を変更した場合のみです。</li>
+      </ul>
+      <div class="note">
+        つまり、<b>エクスポートしたファイルをそのまま置くだけ</b>で問題ありません。
+        以下の 3.1・3.2 の列一覧は、列名を変更してしまった場合や、エラーが出た場合にご確認ください。
+      </div>
+
+      <h3>3.1. <code>expenses/</code> — 出張精算CSV</h3>
+      <p>形式：CSV、cp932エンコード（楽々精算のエクスポートと同じ）。以下の列名（または、その語を<b>含む</b>
+      見出し。例：<code>"ヘッダ情報:伝票No"</code> も可）が必要です：</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>列名（検索される語）</th><th>用途</th><th>必須か</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>伝票No</code></td><td>申請番号 — これでグループ化される</td><td class="req">必須</td></tr>
+            <tr><td><code>申請No</code></td><td>申請の連番</td><td class="req">必須</td></tr>
+            <tr><td><code>行数</code></td><td>1申請あたりの明細行数</td><td class="req">必須</td></tr>
+            <tr><td><code>明細No</code> / <code>明細日付</code></td><td>各明細行の番号と日付</td><td class="req">必須</td></tr>
+            <tr><td><code>開始</code> / <code>終了</code></td><td>移動の開始・終了時刻</td><td class="req">必須</td></tr>
+            <tr><td><code>出発地</code> / <code>到着地</code></td><td>出発地と到着地</td><td class="req">必須</td></tr>
+            <tr><td><code>交通機関</code></td><td>交通手段</td><td class="req">必須</td></tr>
+            <tr><td><code>金額</code> / <code>小計</code></td><td>明細金額／小計</td><td class="req">必須</td></tr>
+            <tr><td><code>合計</code></td><td>申請全体の合計金額（「手当計」と混同しないこと）</td><td class="req">必須</td></tr>
+            <tr><td><code>手当計</code></td><td>手当（日当／宿泊／滞在費）の合計金額</td><td class="req">必須</td></tr>
+            <tr><td><code>証票</code></td><td>領収書の有無</td><td class="req">必須</td></tr>
+            <tr><td><code>手当1CD</code> / <code>手当2CD</code> / <code>手当3CD</code></td><td>日当／宿泊／滞在費の手当コード</td><td class="req">必須</td></tr>
+            <tr><td><code>勘定科目名</code></td><td>勘定科目の名称</td><td class="req">必須</td></tr>
+            <tr><td><code>フリー</code></td><td>自由記入欄</td><td class="req">必須</td></tr>
+            <tr><td><code>入力者名</code> <span class="opt">（旧形式）</span> または <code>申請者名</code> <span class="opt">（新形式）</span></td><td>申請者氏名</td><td class="req">いずれか必須</td></tr>
+            <tr><td><code>承認実行者1</code>〜<code>5</code> / <code>承認日1</code>〜<code>5</code></td><td>1〜5段階の承認者と承認日</td><td class="req">必須（最大5段階）</td></tr>
+            <tr><td><code>申請者CD</code></td><td>申請者コード（新CSV形式のみ存在）</td><td class="opt">任意</td></tr>
+            <tr><td><code>通常経路到着</code></td><td>通常経路到着時間</td><td class="opt">任意 — 現時点のデータには無し（下の注意書きを参照）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="warn">
+        <code>伝票No</code>、<code>出発地</code>、<code>金額</code> など<b>必須</b>列のいずれかが見つからない場合、
+        プログラムは停止し明確なエラー（「列が見つかりません：...」）を表示します。不正なファイル形式を防ぐための
+        意図的な仕様です。
+      </div>
+      <div class="warn">
+        <b>【重要】<code>通常経路到着</code> はデモ用の仮データです。</b>
+        この列は実データにまだ存在しないため、動作確認用にシステム側が仮の時刻を自動生成しています。
+        したがって <code>03_差異一覧</code>／<code>04_差戻し文面候補</code> に現れる
+        「通常経路到着時間」に関する判定内容は<b>実際の値ではありません</b>。
+        実列をご提供いただき次第、仮データ生成を停止し実データでの判定に切り替えます。
+        <br />※ この列に関する3列（通常経路到着時間／整合／労務実態）は、2026-07-23のご依頼により
+        <code>01_一次承認チェック</code> シートからは削除済みです。
+      </div>
+      <div class="note">
+        <b>対象者の絞り込み：</b>出張精算CSVのうち、<code>承認実行者1名</code> が
+        <b>岡田　高明</b> の伝票のみがチェックシートに反映されます（2026-07-07 ご指定）。
+        他の承認者の伝票はCSVに含まれていても出力されません — 件数が想定より少ない場合はこの条件をご確認ください。
+      </div>
+
+      <h3>3.2. <code>attendance/</code> — 出勤簿xlsx</h3>
+      <p>形式：Excel（.xlsx）。ブック内の<b>全シート</b>が読み込まれます（フレックス／固定勤務 × 一般職／管理職
+      など、シート数が変わっても問題ありません）。また <code>attendance/</code> フォルダ内の
+      <b>xlsxファイルはすべて</b>読み込まれます（出張精算CSVは最新1件のみ）。列名は<b>完全一致</b>
+      （1文字違いも不可）である必要があります — 出張精算CSVのような部分一致は使えません。<b>重要な違い：</b>
+      このファイルでは列が無くてもプログラムは停止しません（エラーになりません）— 列が見つからない場合、
+      該当データは単に空（None）として扱われ、それに関わる判定は「判定不能」として処理されます。
+      そのためエラーは出ないまま判定が不完全になる可能性があり、列名を正しく保つことが特に重要です。</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>列名（完全一致）</th><th>用途</th><th>無い場合どうなるか</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>社員番号</code> / <code>氏名</code></td><td>社員を特定するため</td><td class="req">両方空の場合、その行は完全にスキップされる</td></tr>
+            <tr><td><code>日付</code> / <code>曜日</code></td><td>日付と曜日</td><td class="opt">日付が空だと他の日との比較ができない</td></tr>
+            <tr><td><code>カレンダー</code></td><td>平日／休日の種別（法定外／法定内は休日扱い）</td><td class="opt">在席状態が「不明」になる</td></tr>
+            <tr><td><code>出勤時刻</code> / <code>退勤時刻</code></td><td>勤務開始・終了時刻</td><td class="opt">勤務実績が無いものとして扱われる</td></tr>
+            <tr><td><code>テレワーク出勤時刻</code> / <code>テレワーク退勤時刻</code></td><td>テレワーク時刻</td><td class="opt">テレワークが検知されない</td></tr>
+            <tr><td><code>移動開始</code> / <code>移動終了</code></td><td>移動（出張）時刻 — 1回目</td><td class="opt">深夜移動の判定ができない</td></tr>
+            <tr><td><code>移動2開始</code> / <code>移動2終了</code></td><td>移動時刻 — 2回目（1日2回移動がある場合）</td><td class="opt">2回目の移動が反映されない</td></tr>
+            <tr><td><code>申請内容</code></td><td>休暇申請の種別（カンマ区切り可）</td><td class="opt">休暇状態が判定されない</td></tr>
+            <tr><td><code>休出時間</code> <span class="opt">（この語を含む任意の列名）</span></td><td>休日出勤時間</td><td class="opt">休日出勤が判定に反映されない</td></tr>
+            <tr><td><code>部門</code> / <code>役職</code></td><td>部門・役職（予備情報 — 主な取得元は社員リスト.xlsx）</td><td class="opt">問題なし</td></tr>
+            <tr><td><code>備考</code></td><td>備考欄（任意項目、判定には一切使用されない。参考情報のみ）</td><td class="opt">問題なし — 有無に関わらずシステムの動作は同じ</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        このファイルは楽々勤怠から直接エクスポートされるため、列名は通常自動的に正しくなります — 手動で編集しないことが重要です。
+      </div>
+    </section>
+
+    <section>
+      <h2>4. ② 実行方法</h2>
+      <ol>
+        <li><span class="step-num">1</span>プロジェクトフォルダ直下の <code>run.command</code>（Windowsの場合は <code>run.bat</code>）をダブルクリックします。</li>
+        <li><span class="step-num">2</span>通常は何も聞かれません（既定パスワードが自動的に試されます）。社員・顧客リストのパスワードが変更されている場合のみ、ターミナルがパスワードを尋ねます — 入力してください（画面には表示されません）。</li>
+        <li><span class="step-num">3</span>自動で読込・突合・判定・出力が実行されます（数秒〜数十秒）。</li>
+        <li><span class="step-num">4</span>「✅ 完了しました」と表示されたら終了です。Enterキーでウィンドウを閉じてください。</li>
+      </ol>
+      <div class="note">
+        <b>初回実行時のみ</b>実行環境の準備が入るため、数分かかることがあります（2回目以降は数秒〜数十秒）。
+        また実行前に <code>expenses/</code>・<code>attendance/</code> が空でないか自動チェックされ、
+        空の場合はその場でメッセージを表示して停止します。
+      </div>
+      <div class="warn">
+        必要なファイルがフォルダに無い場合、列名が誤っている場合、またはパスワードを3回間違えた場合は、
+        エラーメッセージが表示され処理は中止されます。メッセージの指示に従ってファイルを配置し直すか、
+        パスワードを確認のうえ再度実行してください。
+      </div>
+    </section>
+
+    <section>
+      <h2>5. 運用の手順（ファイルの入れ替え方）</h2>
+      <p>
+        <b>アップロードしたデータ単位でチェックシートを作成します。</b>
+        <code>expenses/</code>・<code>attendance/</code> とも、システムは<b>フォルダ内の最新1ファイルのみ</b>を
+        読み込みます（入れ替え式）。週次で楽々精算・楽々勤怠を出力される運用のため、
+        ファイルを積み上げるとチェック対象が毎回増え続けてしまうことから、
+        <b>最新に格納されたデータのみを抽出・突合する方式</b>としております（2026-08-04 変更）。
+      </p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>フォルダ</th><th>システムの読み込み方</th><th>毎回の操作</th><th>過去分の扱い</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>expenses/</code></td><td><b>最新1ファイルのみ</b></td><td>新しいCSVを配置（<b>入れ替え</b>）</td><td class="opt">削除推奨（残っていても読み込まれません）</td></tr>
+            <tr><td><code>attendance/</code></td><td><b>最新1ファイルのみ</b></td><td>新しい出勤簿を配置（<b>入れ替え</b>）</td><td class="opt">削除推奨（残っていても読み込まれません）</td></tr>
+            <tr><td><code>out/</code></td><td>—（出力先）</td><td>操作不要</td><td class="gray">実行のたびに新フォルダが作られる。そのまま履歴として残せます</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="warn">
+        <b>【重要】2つのファイルは必ず同じ期間のものを組み合わせてください。</b><br />
+        システムは <code>expenses/</code> の最新CSVと <code>attendance/</code> の最新出勤簿を突合します。
+        出張精算CSVに含まれる出張日の勤怠が、出勤簿側に無い場合、その申請は
+        <span class="gray">未確認（勤怠データ欠落）</span> となり、出張実態・労務の判定ができません。
+        <br />たとえば出張精算CSVが4か月分、出勤簿が1か月分だと、残り3か月分の申請はすべて
+        <span class="gray">未確認</span> になります。
+        <b>同じ週（同じ期間）にエクスポートした2ファイルをセットで配置</b>してください。
+      </div>
+
+      <h3>5.1. 最新1ファイルの判定方法</h3>
+      <p>
+        システムは<b>ファイル名に含まれる数字（タイムスタンプ）</b>で新旧を判断します。
+        楽々精算・楽々勤怠からエクスポートしたファイル名（例：<code>出勤簿_日別詳細_20260630085826.xlsx</code>）を
+        そのままご利用いただければ問題ありません。
+      </p>
+      <div class="note">
+        <b>ファイル名を手動で変更しないでください。</b>ファイル名の数字と中身の対象期間が食い違うと、
+        意図しないファイルが「最新」と判定されることがあります。
+      </div>
+
+      <h3>5.2. <code>out/</code> — 操作不要</h3>
+      <p>
+        実行のたびに <code>out/YYYYMMDD_HHMMSS/</code> という新しいフォルダが自動作成されます。
+        既存のフォルダが上書きされることはないため、削除は不要です。過去の実行結果をそのまま履歴として保管できます。
+      </p>
+
+      <h3>5.3. 毎回の作業手順（まとめ）</h3>
+      <ol>
+        <li><span class="step-num">1</span><code>expenses/</code> 内の古いCSVを削除し、新しくエクスポートした出張精算CSVを配置</li>
+        <li><span class="step-num">2</span><code>attendance/</code> 内の古い出勤簿を削除し、<b>同じ期間</b>の出勤簿を配置</li>
+        <li><span class="step-num">3</span><code>run.command</code> / <code>run.bat</code> を実行</li>
+        <li><span class="step-num">4</span><code>out/</code> の最新フォルダを開き、結果を確認</li>
+      </ol>
+      <div class="note">
+        古いファイルを残しても読み込まれないため動作上の問題はありませんが、
+        どのファイルが使われたか分かりにくくなるため、削除を推奨します。
+        実際に読み込まれたファイル名は <code>05_取込ログ</code> シートでご確認いただけます。
+      </div>
+    </section>
+
+    <section>
+      <h2>6. ③ 結果の確認</h2>
+
+      <h3>6.1. 出力されるファイル</h3>
+      <p>
+        実行が完了すると <code>out/</code> フォルダ内にタイムスタンプ付きの新しいフォルダ
+        （<code>out/YYYYMMDD_HHMMSS/</code>）が作成され、以下の<b>2ファイル</b>が出力されます。
+      </p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>ファイル</th><th>内容</th><th>開き方</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>出張精算_承認チェックシート_&lt;日時&gt;.xlsx</code></td><td>Excelチェックシート（7シート構成）</td><td>Excel</td></tr>
+            <tr><td><code>..._&lt;日時&gt;_ja.html</code></td><td>HTMLレポート — 検索・絞り込み機能付き</td><td>ブラウザ</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        HTMLレポートはExcelと同じ内容を、そのまま画面上で確認しやすくしたものです。
+        Excelを開かずに内容を共有・確認したい場合はこちらをご利用ください。
+      </div>
+
+      <h3>6.2. Excel 7シートの構成</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>シート</th><th>粒度</th><th>内容</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>01_一次承認チェック</code></td><td>申請（伝票）×日＝1行<br /><span class="opt">2026-07-31 変更（8.2 参照）</span></td><td>一次承認者のメイン画面。総合判定と要確認項目を色分け表示。伝票単位の値は先頭日の行にのみ表示</td></tr>
+            <tr><td><code>02_二次承認詳細</code></td><td>明細1件＝1行</td><td>金額・領収書・宿泊・日当・日程・距離の明細内訳</td></tr>
+            <tr><td><code>03_差異一覧</code></td><td>観点ごと</td><td>OK以外の観点のみ抽出。判定理由・確認先システム・対応案</td></tr>
+            <tr><td><code>04_差戻し文面候補</code></td><td>観点ごと</td><td>要確認／NGの観点ごとに、そのまま使える差戻し文面案</td></tr>
+            <tr><td><code>05_取込ログ</code></td><td>ファイルごと</td><td>取込件数・未承認件数の照合・エラー内容</td></tr>
+            <tr><td><code>06_判定ルール</code></td><td>—</td><td>今回の実行で使用した閾値・区分・規程の提供状況</td></tr>
+            <tr><td><code>07_マスタ確認</code></td><td>—</td><td>マスタ未登録・重複・不整合の一覧（対応不要と確認済みの氏名は除外。2026-07-30 時点では対象なし＝空欄）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        以前ご相談していた「定時外の移動時間 勤務実態」は、2026-07-17のご依頼により
+        <b>独立シートではなく <code>01_一次承認チェック</code> の列（「2. 労務・健康管理の確認」グループ）として
+        組み込まれています</b>。詳細は <b>8章</b> をご参照ください。
+      </div>
+
+      <h3>6.3. HTMLレポートの使い方</h3>
+      <p>HTMLファイルをダブルクリックするとブラウザで開きます。画面上部に7シート分のタブが並びます。</p>
+      <ul>
+        <li><b>01タブ</b>：件数サマリー（NG／要確認／OK／未確認／合計件数）と、判定列ごとの絞り込みボタン、フリーワード検索</li>
+        <li><b>02〜05タブ</b>：フリーワード検索＋判定ステータスでの絞り込み（02タブは <code>明細日付</code> での日付選択も可能）</li>
+        <li><b>06・07タブ</b>：表のみ（絞り込みなし）</li>
+      </ul>
+
+      <h3>6.4. 判定の色分け</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>色</th><th>判定</th><th>対応</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="ok">緑</td><td>OK</td><td>そのまま承認可</td></tr>
+            <tr><td class="chk">黄</td><td>要確認</td><td>内容確認のうえ判断</td></tr>
+            <tr><td class="ng">赤</td><td>NG</td><td>返戻対象</td></tr>
+            <tr><td class="gray">灰</td><td>未突合／未確認</td><td>データ・キーの確認が必要</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>7. 判定の6観点</h2>
+      <p>
+        システムは1件の申請（伝票）に対し、以下の6つの観点で判定します。
+        <code>01_一次承認チェック</code> の <b>総合判定</b> は、各観点のうち<b>最も重い判定</b>が採用されます
+        （NG ＞ 要確認 ＞ 未確認 ＞ OK）。
+      </p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>観点</th><th>何を確認するか</th><th>使用データ</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><b>出張実態</b></td><td>出張した日に実際に出社・移動の勤怠実態があるか／休暇日に出張を計上していないか／到着地が顧客マスタと照合できるか</td><td>楽々精算データ ＋ 楽々勤怠データ ＋ 顧客リストデータ</td></tr>
+            <tr><td><b>労務</b></td><td>移動時刻と勤怠の整合／非労働日・休暇日の移動／深夜帯の移動／通常経路到着時間の整合</td><td>楽々精算データ ＋ 楽々勤怠データ</td></tr>
+            <tr><td><b>金額規程</b></td><td>合計金額と明細合計の一致、行数の一致に加え、役職・地域別の規程上限との照合（9章）</td><td>楽々精算データ ＋ 旅費規定 ＋ 社員リストデータ（役職）＋ 顧客リストデータ（都道府県）</td></tr>
+            <tr><td><b>二重申請</b></td><td>同一の日付・区間・交通機関・金額の明細が複数の伝票にまたがっていないか（同日・同顧客の重複も検知）</td><td>楽々精算データ（全伝票を横断）＋ 顧客リストデータ</td></tr>
+            <tr><td><b>領収書</b></td><td>金額が発生しているのに証票（領収書）が無い明細の検知</td><td>楽々精算データ（証票欄）＋ 旅費規定</td></tr>
+            <tr><td><b>承認ルート</b></td><td>申請者に対する想定出張命令者が、実際の承認者に含まれているか</td><td>楽々精算データ ＋ 20期承認者名簿 ＋ 社員リストデータ</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <b>承認ルートの扱い（2026-07-14 変更）：</b>承認ルートは<b>二次承認者向けの観点</b>のため、
+        <code>01_一次承認チェック</code> の <b>総合判定・要確認項目からは除外</b>されています。
+        判定結果は <code>03_差異一覧</code> と <code>04_差戻し文面候補</code> に引き続き出力されます。
+        つまり01シートの総合判定は残り5観点で決まります。
+      </div>
+      <div class="note">
+        <b>定時外の移動時間の扱い（2026-07-30 変更）：</b>「定時外の移動時間（勤務実態）」は上記6観点とは
+        別枠ですが、<b>総合判定にも反映されます</b>。時刻差が閾値を超えた場合は総合判定が
+        <span class="chk">要確認</span> となり、要確認項目に「定時外移動時間」と表示されます。
+        使用データは <b>楽々精算データ ＋ 楽々勤怠データ</b>（移動・勤務時刻）です。
+        詳細は <b>8章</b> をご参照ください。
+      </div>
+      <div class="note">
+        上記の「使用データ」は <code>03_差異一覧</code> シートの <b>確認先システム</b> 列にも
+        同じ内容が出力されます。差異の内容を確認される際、どのデータを見ればよいかの目安としてご利用ください。
+      </div>
+    </section>
+
+    <section>
+      <h2>8. 定時外の移動時間（勤務実態）の見方</h2>
+      <p>
+        <code>01_一次承認チェック</code> の「<b>2. 労務・健康管理の確認</b>」グループは18列で構成され、
+        1日を3つの時間帯に分けて、<b>楽々精算（申請された移動時刻）</b>と
+        <b>楽々勤怠（実際の勤怠記録）</b>を左右に並べて比較します。
+      </p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>時間帯</th><th>範囲</th><th>列</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>定時前</td><td>〜 9:00</td><td>精算 開始／終了、勤怠 開始／終了、<b>定時前差分</b>、<b>定時前チェック</b></td></tr>
+            <tr><td>勤務時間</td><td>9:00 〜 17:30</td><td>精算 開始／終了、勤怠 開始／終了、<b>勤務差分</b>、<b>勤務チェック</b></td></tr>
+            <tr><td>定時後</td><td>17:30 〜</td><td>精算 開始／終了、勤怠 開始／終了、<b>定時後差分</b>、<b>定時後チェック</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>8.1. 判定ルール</h3>
+      <ul>
+        <li>各時間帯で<b>開始・終了の両方</b>を比較し、差が大きいほう（悪いほう）を採用します。</li>
+        <li><b>10分以内 → <span class="ok">OK</span></b>／<b>11分以上 → <span class="chk">要確認</span></b>。この項目に <span class="ng">NG</span> はありません。</li>
+        <li>精算・勤怠のいずれかで開始または終了のデータが欠けている場合は、差分欄に「データなし」と表示し、
+            チェックは <span class="chk">要確認</span> になります。</li>
+      </ul>
+      <div class="note">
+        <b>2026-07-27 のご依頼により、平日・休日を問わず 9:00／17:30 の定時境界で判定します</b>
+        （それ以前は休日を別扱いにしていました）。
+      </div>
+
+      <h3>8.2. 複数日の出張の表示（2026-07-31 変更：日単位表示）</h3>
+      <p>
+        <b>従来は申請（伝票）1件＝1行</b>だったため、2泊3日の出張では
+        「1日目の定時前」と「3日目の定時後」しか表示されず、中日の移動が見えませんでした。
+        ご指摘を受け、<b>1日＝1行で表示する方式に変更</b>いたしました。
+        1件の申請は、明細日付の日数分の行に展開されます。
+      </p>
+      <p>実例（4日間の出張、<code>2026-04-01 〜 2026-04-04</code>）：</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>日付</th><th>定時前（精算）</th><th>勤務時間（勤怠）</th><th>定時後（精算）</th><th>差分</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>04-01</td><td>—</td><td>09:00 〜 18:30</td><td>18:30 〜 19:00</td><td class="ok">勤務 一致</td></tr>
+            <tr><td>04-02</td><td>—</td><td>09:00 〜 17:30</td><td>17:30 〜 23:15</td><td class="chk">定時後 0:23差</td></tr>
+            <tr><td>04-03</td><td>08:00 〜 09:00</td><td>09:00 〜 21:00</td><td>21:00 〜 21:30</td><td class="ok">勤務 一致</td></tr>
+            <tr><td>04-04</td><td>07:45 〜 09:00</td><td>—</td><td>—</td><td class="chk">定時前 0:33差</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>8.2.1. 行の展開ルール</h3>
+      <ul>
+        <li>行は <code>明細日付</code> の昇順に並びます。新しく <b><code>日付</code> 列</b>を追加しました
+            （<code>出張実態</code> の右隣）。</li>
+        <li>その日の移動を 9:00／17:30 の境界で 定時前・勤務時間・定時後 に振り分けます。
+            1日に2回の移動（<code>移動開始/終了</code> と <code>移動2開始/終了</code>）がある場合も、
+            それぞれ該当の時間帯へ振り分けます。</li>
+        <li><b>伝票単位の項目（合計金額・日当計・総合判定・取引先・二重申請確認など）は、
+            その伝票の先頭日の行にのみ表示</b>されます。2日目以降は空欄です。
+            これは合計金額を集計した際に日数分だけ多重計上されるのを防ぐためです。</li>
+        <li>Excelでは<b>伝票が切り替わるたびに背景色を交互に塗り分け</b>ており、
+            どこからどこまでが1件の申請かひと目で分かるようにしています。</li>
+      </ul>
+      <div class="note">
+        <b>HTMLレポートの検索・絞り込みについて：</b>検索や絞り込みは<b>伝票単位</b>で動作します。
+        たとえば「要確認」で絞り込むと、該当する伝票の<b>全日分の行</b>がまとめて表示されます。
+        日付で検索した場合も、その日を含む伝票の全日分が表示されます。
+        件数表示（<code>◯◯件</code>）も行数ではなく<b>伝票件数</b>です。
+      </div>
+
+      <h3>8.3. 総合判定への反映（2026-07-30 変更）</h3>
+      <p>
+        従来この3つのチェックは<b>表示専用</b>で、総合判定には反映していませんでした
+        （勤務チェックが <span class="chk">要確認</span> でも総合判定が <span class="ok">OK</span> となる状態）。
+        ご指摘を受け、次のとおり総合判定に反映するよう変更しました。
+      </p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>差分の状態</th><th>チェック欄の表示</th><th>総合判定への反映</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>時刻差が11分以上</td><td class="chk">要確認</td><td class="chk">反映する → 総合判定も要確認</td></tr>
+            <tr><td>時刻差が10分以内／一致</td><td class="ok">OK</td><td class="ok">影響なし</td></tr>
+            <tr><td>「データなし」</td><td class="chk">要確認</td><td class="gray">反映しない</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <b>「データなし」を総合判定に反映しない理由：</b>「データなし」は<b>比較する材料が無い</b>状態であり、
+        実際に時刻がずれている証拠ではないためです（多くは楽々勤怠側に移動時刻の打刻が無いケース）。
+        これを反映すると、ほぼ全件が要確認となり判定の意味が薄れてしまいます。
+        なお、チェック欄の表示は 2026-07-17 にご確認いただいた仕様どおり
+        <span class="chk">要確認</span>（黄色）のまま変更しておりません。
+        <br />総合判定に反映された場合は、<code>要確認項目</code> 列に「定時外移動時間」と表示され、
+        <code>03_差異一覧</code> にも該当の時間帯と差分が出力されます。
+      </div>
+    </section>
+
+    <section>
+      <h2>9. 金額の上限基準（国内出張旅費規定 J-4-1／2025-10-01施行）</h2>
+      <p>「金額規程」観点で使用している上限値です。<code>01_一次承認チェック</code> の
+      「3. 出張費・宿泊費上限確認」グループと <b>金額確認</b> 列に反映されます。</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>項目</th><th>一般職</th><th>管理職</th><th>備考</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>出張日当</td><td>1,700円</td><td>3,000円</td><td>手当1CD で識別</td></tr>
+            <tr><td>滞在補助費</td><td>3,500円</td><td>5,000円</td><td>手当3CD で識別</td></tr>
+            <tr><td>出張加算日当</td><td>800円</td><td>1,100円（主任以上）</td><td>勘定科目名で識別</td></tr>
+            <tr><td>ホテル代（東京23区）</td><td>13,500円</td><td>15,000円</td><td rowspan="2">手当2CD。地域は顧客マスタの都道府県から判定</td></tr>
+            <tr><td>ホテル代（その他地域）</td><td>9,500円</td><td>11,000円</td></tr>
+            <tr><td>長距離運転手当（日帰り）</td><td colspan="2">2,500円 〜 3,500円</td><td rowspan="2">範囲チェック。片道300km超は +1,000円</td></tr>
+            <tr><td>長距離運転手当（宿泊時）</td><td colspan="2">1,500円 〜 2,500円</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <b>役職の判定順序：</b>① 社員リストの役職列 → ② 出勤簿の役職列 → ③ システム内の補正表、の順に決定します。
+        「主任・係長・班長・リーダー」は主任以上、「部長・課長・参事・取締役」は管理職として扱います。
+        <br /><b>役職が特定できない場合：</b>一般職の上限以内なら <span class="ok">OK</span>、
+        管理職の上限以内なら <span class="chk">要確認</span>、それを超えると <span class="ng">NG</span> となります。
+      </div>
+      <div class="warn">
+        宿泊税・入湯税はホテル代に付随する費用として合算して判定します（2026-07-07 ご確認済み）。
+        また領収書は原則 1,000円以上の明細で必須、交通系IC・運賃系（電車･ﾊﾞｽ）は免除対象ですが、
+        10,000円以上で領収書が無い場合は免除対象でも <span class="chk">要確認</span> となります。
+      </div>
+    </section>
+
+  </body>
+</html>
