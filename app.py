@@ -82,19 +82,40 @@ def _python_executable() -> str:
     """処理を実行する Python のパスを決める.
 
     WSGI サーバ (PythonAnywhere の uWSGI 等) の下では sys.executable が
-    空になったり Web サーバ本体を指すことがあるため, その場合は
-    同梱の仮想環境 → PATH 上の python3 の順にフォールバックする。
+    空になったり Web サーバ本体を指すことがあるため, 順にフォールバックする:
+
+      1. 環境変数 CHECKSHEET_PYTHON (明示指定)
+      2. sys.executable
+      3. sys.prefix (有効な仮想環境の場所。mkvirtualenv で ~/.virtualenvs/ に
+         作った場合でも、プロジェクト直下の .venv でも、ここで拾える)
+      4. プロジェクト直下の .venv / venv
+      5. PATH 上の python3
+
+    5番目まで来た場合はライブラリが入っていない可能性が高いが、
+    何も返せないよりは実行を試みてエラー内容を見せたほうがよい。
     """
-    exe = sys.executable
-    if exe and os.path.isfile(exe) and "python" in os.path.basename(exe).lower():
-        return exe
-    for candidate in (
+    env_exe = os.environ.get("CHECKSHEET_PYTHON")
+    if env_exe and os.path.isfile(env_exe):
+        return env_exe
+
+    def _looks_like_python(path: str) -> bool:
+        return bool(path) and os.path.isfile(path) \
+            and "python" in os.path.basename(path).lower()
+
+    if _looks_like_python(sys.executable):
+        return sys.executable
+
+    candidates = [
+        os.path.join(sys.prefix, "bin", "python"),
+        os.path.join(sys.prefix, "Scripts", "python.exe"),
         os.path.join(BASE_DIR, ".venv", "bin", "python"),
         os.path.join(BASE_DIR, ".venv", "Scripts", "python.exe"),
         os.path.join(BASE_DIR, "venv", "bin", "python"),
-    ):
+    ]
+    for candidate in candidates:
         if os.path.isfile(candidate):
             return candidate
+
     found = shutil.which("python3") or shutil.which("python")
     if found:
         return found

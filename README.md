@@ -33,11 +33,25 @@ git clone https://github.com/dovudbek7/SCREEN-PEEG-FLASK.git
 
 ### 2. 仮想環境を作る
 
+PythonAnywhere 標準の `mkvirtualenv` を使う方法（推奨）:
+
 ```bash
-cd SCREEN-PEEG-FLASK
-python3.10 -m venv .venv
+mkvirtualenv --python=/usr/bin/python3.11 screen-peeg
+pip install -r ~/SCREEN-PEEG-FLASK/requirements.txt
+```
+
+作成先は `/home/<ユーザー名>/.virtualenvs/screen-peeg` になる。
+
+プロジェクト直下に作りたい場合はこちらでも動く:
+
+```bash
+cd ~/SCREEN-PEEG-FLASK
+python3.11 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
+
+どちらの置き場所でも、`app.py` が `sys.prefix` から実行中の
+仮想環境を辿るため、追加の設定は不要。
 
 ### 3. Web アプリを作成
 
@@ -49,7 +63,7 @@ Web タブ → **Add a new web app** → **Manual configuration** → **Python 3
 |---|---|
 | Source code | `/home/<ユーザー名>/SCREEN-PEEG-FLASK` |
 | Working directory | `/home/<ユーザー名>/SCREEN-PEEG-FLASK` |
-| Virtualenv | `/home/<ユーザー名>/SCREEN-PEEG-FLASK/.venv` |
+| Virtualenv | `/home/<ユーザー名>/.virtualenvs/screen-peeg`<br>（プロジェクト直下に作った場合は `.../SCREEN-PEEG-FLASK/.venv`） |
 
 ### 5. WSGI ファイルを差し替え
 
