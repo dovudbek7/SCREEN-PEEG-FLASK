@@ -303,10 +303,10 @@ _MANUAL_BAR = """
   <span style="font-size:13px;font-weight:700;flex:1;min-width:180px;">操作マニュアル</span>
   <a href="/manual/download/pdf"
      style="padding:7px 16px;border-radius:6px;background:#fff;color:#14245a;
-            text-decoration:none;font-size:12px;font-weight:700;">PDF をダウンロード</a>
+            text-decoration:none;font-size:12px;font-weight:700;">PDFをダウンロード</a>
   <a href="/manual/download/html"
      style="padding:7px 16px;border-radius:6px;border:1px solid rgba(255,255,255,.5);
-            color:#fff;text-decoration:none;font-size:12px;font-weight:700;">HTML をダウンロード</a>
+            color:#fff;text-decoration:none;font-size:12px;font-weight:700;">HTMLをダウンロード</a>
   <a href="/" style="color:rgba(255,255,255,.8);text-decoration:none;font-size:12px;">
      ← チェックシート作成へ戻る</a>
 </div>
