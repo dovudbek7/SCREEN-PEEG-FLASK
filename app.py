@@ -292,23 +292,40 @@ def download(job_id: str, stamp: str, filename: str):
 
 MANUAL_DIR = os.path.join(BASE_DIR, "static", "manual")
 
-# マニュアル本体 (static/manual/manual.html) の先頭に差し込むダウンロードバー。
+# マニュアル本体 (static/manual/manual.html) の先頭に差し込む操作バー。
 # マニュアルのHTMLは pdef/manual/japan.html をそのままコピーしたものなので,
 # ファイルには手を入れず, 表示するときにバーだけを足す。
+#
+# PDF は事前生成したファイルを配信するのではなく, ブラウザの印刷機能
+# (window.print) を呼び出して「PDFに保存」してもらう方式にしている
+# (2026-08-05)。表示中のHTMLからそのまま出力されるため, マニュアルを
+# 更新するたびにPDFを作り直す必要がない。
 _MANUAL_BAR = """
-<div style="position:sticky;top:0;z-index:999;display:flex;flex-wrap:wrap;
-            align-items:center;gap:10px;padding:12px 20px;margin:-40px -48px 28px;
-            background:#14245a;color:#fff;
-            font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,sans-serif;">
-  <span style="font-size:13px;font-weight:700;flex:1;min-width:180px;">操作マニュアル</span>
-  <a href="/manual/download/pdf"
-     style="padding:7px 16px;border-radius:6px;background:#fff;color:#14245a;
-            text-decoration:none;font-size:12px;font-weight:700;">PDFをダウンロード</a>
-  <a href="/manual/download/html"
-     style="padding:7px 16px;border-radius:6px;border:1px solid rgba(255,255,255,.5);
-            color:#fff;text-decoration:none;font-size:12px;font-weight:700;">HTMLをダウンロード</a>
-  <a href="/" style="color:rgba(255,255,255,.8);text-decoration:none;font-size:12px;">
-     ← チェックシート作成へ戻る</a>
+<style>
+  #manual-bar {
+    position: sticky; top: 0; z-index: 999;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    padding: 12px 20px; margin: -40px -48px 28px;
+    background: #14245a; color: #fff;
+    font-family: 'Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,sans-serif;
+  }
+  #manual-bar .mb-title { font-size: 13px; font-weight: 700; flex: 1; min-width: 180px; }
+  #manual-bar .mb-btn {
+    padding: 7px 16px; border-radius: 6px; font-size: 12px; font-weight: 700;
+    text-decoration: none; cursor: pointer; font-family: inherit;
+    border: 1px solid rgba(255,255,255,.5); background: transparent; color: #fff;
+  }
+  #manual-bar .mb-btn.primary { background: #fff; color: #14245a; border-color: #fff; }
+  #manual-bar .mb-back { color: rgba(255,255,255,.8); text-decoration: none; font-size: 12px; }
+  /* 印刷 (PDF保存) のときは操作バーを出さない */
+  @media print { #manual-bar { display: none !important; } }
+</style>
+<div id="manual-bar">
+  <span class="mb-title">操作マニュアル</span>
+  <button type="button" class="mb-btn primary" onclick="window.print()"
+          title="印刷ダイアログが開きます。送信先で「PDFに保存」を選択してください。">PDFをダウンロード</button>
+  <a class="mb-btn" href="/manual/download/html">HTMLをダウンロード</a>
+  <a class="mb-back" href="/">← チェックシート作成へ戻る</a>
 </div>
 """
 
@@ -331,16 +348,15 @@ def manual():
 
 @app.get("/manual/download/<kind>")
 def manual_download(kind: str):
-    names = {"pdf": "出張精算_承認チェックシート_操作マニュアル.pdf",
-             "html": "出張精算_承認チェックシート_操作マニュアル.html"}
-    files = {"pdf": "manual.pdf", "html": "manual.html"}
-    if kind not in files:
+    """マニュアルのダウンロード。PDF はブラウザの印刷機能で出力するため
+    ここでは HTML のみを配信する。"""
+    if kind != "html":
         abort(404)
-    if not os.path.isfile(os.path.join(MANUAL_DIR, files[kind])):
+    if not os.path.isfile(os.path.join(MANUAL_DIR, "manual.html")):
         abort(404)
-    return send_from_directory(MANUAL_DIR, files[kind],
-                               as_attachment=True,
-                               download_name=names[kind])
+    return send_from_directory(
+        MANUAL_DIR, "manual.html", as_attachment=True,
+        download_name="出張精算_承認チェックシート_操作マニュアル.html")
 
 
 @app.get("/healthz")
