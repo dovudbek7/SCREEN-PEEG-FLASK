@@ -179,6 +179,9 @@ def main(argv=None) -> int:
                     help="ウズベク語版HTML(_uz.html)も出力する(既定は日本語版のみ)")
     ap.add_argument("--no-pause", action="store_true",
                     help="終了時に Enter 待ちをしない (CI/自動実行用)")
+    ap.add_argument("--approver", default=None, metavar="氏名",
+                    help="対象者(承認実行者1名)を上書きする。"
+                         "空文字を渡すと絞り込みを行わず全件を対象にする")
     args = ap.parse_args(argv)
 
     try:
@@ -191,6 +194,11 @@ def main(argv=None) -> int:
         traceback.print_exc()
         print(f"\n[ERROR] {type(e).__name__}: {e}", file=sys.stderr)
         return 1
+
+    # 対象者フィルタの上書き (Web版の承認者セレクタから渡される).
+    # 未指定なら config.py の既定値を使う。空文字なら絞り込みなし。
+    if args.approver is not None:
+        cfg.target_approver_filter = args.approver.strip() or None
 
     try:
         cfg.master_password = _resolve_master_password(cfg, args.password)

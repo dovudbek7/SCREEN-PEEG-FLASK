@@ -50,6 +50,13 @@
         background: #fafbff; cursor: pointer;
       }
       input[type=file]:hover { border-color: var(--accent); background: #f4f7ff; }
+      select {
+        width: 100%; padding: 12px 14px; font-size: 14px;
+        border: 1px solid var(--border); border-radius: var(--radius);
+        background: #fafbff; color: var(--text); cursor: pointer;
+        font-family: inherit;
+      }
+      select:hover { border-color: var(--accent); }
       button {
         width: 100%; padding: 14px; font-size: 15px; font-weight: 700;
         color: #fff; background: var(--navy); border: none;
@@ -143,6 +150,17 @@
             <input type="file" id="attendance" name="attendance" accept=".xlsx,.xls" required />
           </div>
 
+          <div class="field">
+            <label for="approver">③ 対象者（承認実行者1名）</label>
+            <div class="hint">特定の承認者の伝票だけを対象にしたい場合に選択してください</div>
+            <select id="approver" name="approver">
+              <option value="">全員（絞り込みなし）</option>
+              {% for a in approvers %}
+                <option value="{{ a }}" {% if a == selected_approver %}selected{% endif %}>{{ a }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
           <button type="submit" id="submit">チェックシートを作成する</button>
         </form>
 
@@ -151,6 +169,10 @@
         {% if files %}
           <div class="result">
             <h2>作成が完了しました</h2>
+
+            <div class="note" style="margin-top:-4px;margin-bottom:16px">
+              対象者：<b>{% if used_approver %}{{ used_approver }}{% else %}全員（絞り込みなし）{% endif %}</b>
+            </div>
 
             {% if summary %}
               <div class="stats">

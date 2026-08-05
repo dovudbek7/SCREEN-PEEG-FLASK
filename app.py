@@ -35,6 +35,35 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64MB
 
 
+_approver_cache: list[str] | None = None
+
+
+def _approver_choices() -> list[str]:
+    """承認者セレクタに出す 出張命令者 の一覧を 20期承認者名簿 から読む.
+
+    名簿は起動後に変わらないため一度だけ読んで使い回す。
+    読めなかった場合は空リストを返し, 画面では「全員」のみ選べるようにする。
+    """
+    global _approver_cache
+    if _approver_cache is not None:
+        return _approver_cache
+    try:
+        if SRC_DIR not in sys.path:
+            sys.path.insert(0, SRC_DIR)
+        from file_discovery import latest_matching
+        from loaders.approver_loader import load_approver_rules
+        path = latest_matching(MASTER_DIR, "*評価者・承認者一覧*.xlsx")
+        rules = load_approver_rules(path, "20期")
+        names = sorted({
+            r.trip_approver_raw for r in rules
+            if r.trip_approver_raw and "確認" not in r.trip_approver_raw
+        })
+        _approver_cache = names
+    except Exception:  # noqa: BLE001  (名簿が読めなくても画面は出す)
+        _approver_cache = []
+    return _approver_cache
+
+
 def _cleanup_old_jobs() -> None:
     """TTL を過ぎた作業フォルダを削除する."""
     if not os.path.isdir(JOBS_DIR):
@@ -122,11 +151,13 @@ def _python_executable() -> str:
     raise RuntimeError("処理を実行する Python が見つかりませんでした。")
 
 
-def _run_checksheet(work: str) -> subprocess.CompletedProcess:
+def _run_checksheet(work: str, approver: str = "") -> subprocess.CompletedProcess:
     env = dict(os.environ, CHECKSHEET_ROOT=work, PYTHONIOENCODING="utf-8")
+    # --approver に空文字を渡すと絞り込みなし (全件対象) になる
+    cmd = [_python_executable(), os.path.join(SRC_DIR, "main.py"),
+           "--no-pause", "--approver", approver]
     return subprocess.run(
-        [_python_executable(), os.path.join(SRC_DIR, "main.py"), "--no-pause"],
-        capture_output=True, text=True, env=env,
+        cmd, capture_output=True, text=True, env=env,
         timeout=RUN_TIMEOUT_SECONDS,
     )
 
@@ -145,29 +176,37 @@ def _result_files(work: str) -> tuple[str, list[str]]:
     return stamp, files
 
 
+def _render(**kwargs):
+    """承認者セレクタの選択肢と現在の選択値を必ず渡してテンプレートを描画する."""
+    kwargs.setdefault("approvers", _approver_choices())
+    kwargs.setdefault("selected_approver", request.form.get("approver", ""))
+    return render_template("index.html", **kwargs)
+
+
 @app.get("/")
 def index():
     _cleanup_old_jobs()
-    return render_template("index.html")
+    return _render()
 
 
 @app.post("/run")
 def run():
     expense = request.files.get("expense")
     attendance = request.files.get("attendance")
+    approver = (request.form.get("approver") or "").strip()
+
+    # 未知の氏名が送られてきた場合は絞り込みなしに倒す
+    if approver and approver not in _approver_choices():
+        approver = ""
 
     if not expense or not expense.filename:
-        return render_template("index.html",
-                               error="出張精算CSVを選択してください。"), 400
+        return _render(error="出張精算CSVを選択してください。"), 400
     if not attendance or not attendance.filename:
-        return render_template("index.html",
-                               error="出勤簿xlsxを選択してください。"), 400
+        return _render(error="出勤簿xlsxを選択してください。"), 400
     if not expense.filename.lower().endswith(".csv"):
-        return render_template("index.html",
-                               error="出張精算は CSV ファイルを選択してください。"), 400
+        return _render(error="出張精算は CSV ファイルを選択してください。"), 400
     if not attendance.filename.lower().endswith((".xlsx", ".xls")):
-        return render_template("index.html",
-                               error="出勤簿は xlsx ファイルを選択してください。"), 400
+        return _render(error="出勤簿は xlsx ファイルを選択してください。"), 400
 
     _cleanup_old_jobs()
     job_id = uuid.uuid4().hex[:12]
@@ -187,29 +226,23 @@ def run():
                   os.path.join(work, "attendance", fixed))
 
     try:
-        proc = _run_checksheet(work)
+        proc = _run_checksheet(work, approver)
     except subprocess.TimeoutExpired:
         shutil.rmtree(work, ignore_errors=True)
-        return render_template(
-            "index.html",
+        return _render(
             error=f"処理が {RUN_TIMEOUT_SECONDS} 秒以内に終わりませんでした。"
                   "ファイルの内容をご確認ください。"), 500
 
     log = _clean_log((proc.stdout or "") + (proc.stderr or ""), work)
     if proc.returncode != 0:
-        return render_template("index.html",
-                               error="処理中にエラーが発生しました。",
-                               log=log), 500
+        return _render(error="処理中にエラーが発生しました。", log=log), 500
 
     stamp, files = _result_files(work)
     if not files:
-        return render_template("index.html",
-                               error="結果ファイルが生成されませんでした。",
-                               log=log), 500
+        return _render(error="結果ファイルが生成されませんでした。", log=log), 500
 
-    return render_template("index.html", log=log, job_id=job_id,
-                           stamp=stamp, files=files,
-                           summary=_parse_summary(log))
+    return _render(log=log, job_id=job_id, stamp=stamp, files=files,
+                   summary=_parse_summary(log), used_approver=approver)
 
 
 def _clean_log(log: str, work: str) -> str:
