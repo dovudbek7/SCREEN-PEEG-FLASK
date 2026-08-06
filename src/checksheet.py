@@ -393,14 +393,23 @@ def _off_hours_window_verdict(exp_pair: tuple, att_pair: tuple, ok_minutes: int)
     2026-07-24: 終了時刻だけ一致していれば開始時刻が数時間ずれていても
     OK扱いになっていた不具合の修正. 勤務チェック/定時後チェックも同一ロジック).
     客先確定ルール (2026-07-16): 差分が ok_minutes(既定10分) 以内なら OK,
-    それを超えたら要確認 (NG無し). 片方でも開始・終了いずれかのデータが
-    無ければ 差分列は「データなし」(プレーン表示), チェック列は要確認
+    それを超えたら要確認 (NG無し).
+
+    2026-08-06 客先依頼: 3日間の出張の中日のように, そもそも移動が発生しない日は
+    定時前/定時後の欄が両システムとも空になる. これは乖離ではないため
+    「移動なし」= OK とする. 一方だけにデータがある場合は突合できない乖離なので
+    従来どおり「データなし」= 要確認 のままにする
     (データ欠落は確認対象であり, OK/要確認/NGとは別の第4状態ではない —
     客先モックアップ 2026-07-17 で確認: データなしの行のチェック欄も黄色い「要確認」)."""
     def _diff_min(a: time | None, b: time | None) -> int | None:
         if a is None or b is None:
             return None
         return abs((a.hour * 60 + a.minute) - (b.hour * 60 + b.minute))
+
+    exp_empty = exp_pair[0] is None and exp_pair[1] is None
+    att_empty = att_pair[0] is None and att_pair[1] is None
+    if exp_empty and att_empty:
+        return "移動なし", OK
 
     d_start = _diff_min(exp_pair[0], att_pair[0])
     d_end = _diff_min(exp_pair[1], att_pair[1])

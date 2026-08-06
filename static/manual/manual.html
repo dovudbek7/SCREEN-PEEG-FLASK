@@ -531,10 +531,25 @@
         <li>時刻差が11分以上：<span class="chk">要確認</span></li>
         <li>この項目に<span class="ng">「NG」</span>はありません。</li>
       </ul>
-      <p>
-        楽々精算または楽々勤怠のいずれかで、開始時刻または終了時刻のデータが欠けている場合、
-        差分欄には「データなし」と表示され、チェック結果は<span class="chk">「要確認」</span>になります。
-      </p>
+      <p>データが揃っていない場合は、次の2つに分けて判定します。</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>状態</th><th>差分欄の表示</th><th>チェック結果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>楽々精算・楽々勤怠の<b>どちらにも</b>時刻が入っていない</td><td>移動なし</td><td class="ok">OK</td></tr>
+            <tr><td><b>片方だけ</b>に時刻が入っている</td><td>データなし</td><td class="chk">要確認</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <b>「移動なし」を OK とする理由（2026年8月6日変更）</b><br />
+        3日間の出張の中日のように、そもそも移動が発生しない日は、定時前・定時後の欄が
+        両システムとも空になります。これは乖離ではないため、<span class="ok">OK</span> と判定します。
+        <br />一方、片方のシステムにのみ時刻が入っている場合は、突合できない乖離であるため、
+        従来どおり<span class="chk">「要確認」</span>となります。
+      </div>
       <div class="note">
         2026年7月27日のご依頼により、平日・休日を問わず、9:00および17:30を定時の境界として判定します。
         それ以前は、休日を別の条件で判定していました。
@@ -599,7 +614,8 @@
           <tbody>
             <tr><td>時刻差が11分以上</td><td class="chk">要確認</td><td class="chk">反映します。総合判定も「要確認」になります。</td></tr>
             <tr><td>時刻差が10分以内／一致</td><td class="ok">OK</td><td class="ok">影響しません。</td></tr>
-            <tr><td>「データなし」</td><td class="chk">要確認</td><td class="gray">反映しません。</td></tr>
+            <tr><td>「移動なし」（両システムとも時刻なし）</td><td class="ok">OK</td><td class="ok">影響しません。</td></tr>
+            <tr><td>「データなし」（片方のみ時刻あり）</td><td class="chk">要確認</td><td class="gray">反映しません。</td></tr>
           </tbody>
         </table>
       </div>

@@ -687,6 +687,7 @@ I18N = {
             # ── Sheet 01 '3.定時外の移動時間 勤務実態' の差分・チェック値 ──
             "一致":                           "Mos keladi",
             "データなし":                     "Ma'lumot yo'q",
+            "移動なし":                       "Harakat yo'q",
             # ── 判定 ──
             "要確認":                         "Tekshirish kerak",
             "要確認(勤怠データ欠落)":         "Tekshirish kerak (davomati yo'q)",
