@@ -232,6 +232,10 @@ def _write_banner(ws, banners) -> int:
 
     1 行目: タイトル. 以降 1 行 1 バナー. 表は banners ブロックの 2 行下から.
     """
+    # 2026-08-06: 表示する内容が無いときは見出しごと出さない (表を上から始める)
+    if not banners:
+        return 1
+
     title = "出張精算 承認チェックシート — 既知の前提・データ欠落 (必ず確認)"
     cell = ws.cell(row=1, column=1, value=title)
     cell.font = Font(bold=True, size=12, color="9C5700")

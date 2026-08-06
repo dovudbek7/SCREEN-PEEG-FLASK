@@ -42,6 +42,12 @@ def _translate_cell_val(val: str, i18n: dict) -> str:
     if m:
         return f"{m.group(1)}-kun" + (" (oxirgi)" if m.group(2) else "")
 
+    # 勤務窓のはみ出しラベル (2026-08-06): '出勤前0:30' / '退勤後1:30／出勤前0:05'
+    if "出勤前" in val or "退勤後" in val:
+        out = val.replace("出勤前", "ishga kelishdan oldin ")
+        out = out.replace("退勤後", "ishdan chiqqach ")
+        return out.replace("／", " / ")
+
     m = re.match(r'対象件数\(伝票\)=(\d+) / 未承認件数=(\d+) / 承認済=(\d+)', val)
     if m:
         return f"Hujjat soni={m.group(1)} / Tasdiqlanmagan={m.group(2)} / Tasdiqlangan={m.group(3)}"
@@ -631,6 +637,9 @@ I18N = {
         "lbl_total":    "合計件数",
         "legend_title": "ステータス凡例：",
         "filter_status_all": "ステータス：すべて",
+        "compact_on":  "表を広く表示",
+        "compact_off": "件数・フィルタを表示",
+        "compact_hint": "バナー・件数サマリー・絞り込みを隠して, 表を画面いっぱいに表示します",
         "jump_hint": "クリックで詳細（03_差異一覧）へ移動",
         "filter_bar_title": "観点別フィルタ：",
         "sort_by_date": "日付で絞り込み",
@@ -659,6 +668,9 @@ I18N = {
         "lbl_total":    "Jami ariza",
         "legend_title": "Status belgilari:",
         "filter_status_all": "Status: barchasi",
+        "compact_on":  "Jadvalni kengaytirish",
+        "compact_off": "Statistika va filtrni ko'rsatish",
+        "compact_hint": "Banner, statistika va filtrlarni yashirib, jadvalni to'liq ekranga chiqaradi",
         "jump_hint": "Bosib tafsilotga (03_Farqlar) o'ting",
         "filter_bar_title": "Mezon bo'yicha filter:",
         "sort_by_date": "Sana bo'yicha filter",
@@ -688,6 +700,11 @@ I18N = {
             "一致":                           "Mos keladi",
             "データなし":                     "Ma'lumot yo'q",
             "移動なし":                       "Harakat yo'q",
+            "勤務時間内":                     "Ish vaqti ichida",
+            "勤怠打刻なし":                   "Davomatda belgi yo'q",
+            "精算計上なし":                   "Arizada yo'q",
+            "作業計上なし":                   "Ish qatori yo'q",
+            "未確認(突合不可)":               "Aniqlanmagan (solishtirib bo'lmadi)",
             # ── 判定 ──
             "要確認":                         "Tekshirish kerak",
             "要確認(勤怠データ欠落)":         "Tekshirish kerak (davomati yo'q)",
@@ -1071,6 +1088,9 @@ def _render_sheet(sid: str, label: str, data: dict, i18n: dict) -> str:
   <div class="toolbar-row">
     <input class="search-box" type="text" placeholder="{i18n['search']}" oninput="applyFiltersMulti('{sid}', '{suffix}')" id="search-{sid}">
     <span class="row-count" id="count-{sid}">{voucher_count} {suffix}</span>
+    <button type="button" class="compact-btn" onclick="toggleCompact(this)"
+            data-on="{i18n.get('compact_on', '')}" data-off="{i18n.get('compact_off', '')}"
+            title="{i18n.get('compact_hint', '')}">{i18n.get('compact_on', '')}</button>
   </div>
   <div class="filter-bar">
     <span class="filter-bar-title">{i18n.get('filter_bar_title', '')}</span>
@@ -1162,15 +1182,20 @@ body {
   font-size: 12.5px;
   color: var(--text);
   background: #f1f5f9;
-  min-height: 100vh;
+  /* 2026-08-06: 見出し固定のためページ自体はスクロールさせず, 表の中だけを
+     スクロールさせる. ページと表の二重スクロールになると, 上部のツールバーが
+     ヘッダーの下に潜り込んで見切れてしまうため. */
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 /* ── Header ── */
 .app-header {
   background: var(--navy);
   color: #fff;
   padding: 14px 24px 0;
-  position: sticky;
-  top: 0;
+  flex: 0 0 auto;
   z-index: 100;
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
@@ -1193,29 +1218,42 @@ body {
 .tab-btn:hover { background: rgba(255,255,255,0.22); color:#fff; }
 .tab-btn.active { background: #fff; color: var(--navy); font-weight: 700; }
 /* ── Main content ── */
-.main { padding: 20px 24px; }
-.panel { animation: fadeIn 0.15s ease; }
+.main {
+  padding: 10px 20px;
+  flex: 1 1 auto;
+  min-height: 0;          /* flex 子が縮めるようにする */
+  display: flex;
+  flex-direction: column;
+}
+.panel {
+  animation: fadeIn 0.15s ease;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
 /* ── Notice box ── */
 .notice-box {
   background: #fff8e1;
   border-left: 3px solid #f59e0b;
   border-radius: 0 var(--radius) var(--radius) 0;
-  padding: 10px 14px;
-  margin-bottom: 14px;
-  font-size: 12px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  font-size: 11.5px;
   color: #78350f;
 }
 .notice-box ul { padding-left: 16px; }
 .notice-box li { margin-bottom: 3px; }
 /* ── Legend + Stats (side-by-side card layout) ── */
-.stats-panel { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.stats-panel { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
 .legend-card {
   border: 1px solid var(--border); border-radius: var(--radius);
-  background: #fff; padding: 12px 18px; font-size: 12px; color: var(--text);
+  background: #fff; padding: 6px 12px; font-size: 11.5px; color: var(--text);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
 }
-.legend-card-title { font-weight: 700; margin-bottom: 6px; font-size: 11.5px; }
-.legend-card-item { display: flex; align-items: center; gap: 7px; padding: 2px 0; white-space: nowrap; }
+.legend-card-title { font-weight: 700; font-size: 11px; }
+.legend-card-item { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .lg-ico { font-weight: 700; width: 14px; text-align: center; display: inline-block; }
 .lg-ico.ic-ok   { color: var(--ok); }
 .lg-ico.ic-warn { color: var(--warn); }
@@ -1227,17 +1265,28 @@ body {
   box-shadow: 0 1px 4px rgba(0,0,0,0.1);
 }
 .stat-table th, .stat-table td {
-  border: 1px solid var(--border); padding: 8px 22px; text-align: center; white-space: nowrap;
+  border: 1px solid var(--border); padding: 4px 16px; text-align: center; white-space: nowrap;
 }
 .stat-table thead th { font-weight: 700; background: #f8fafc; }
-.stat-table tbody td { font-size: 21px; font-weight: 700; }
+.stat-table tbody td { font-size: 16px; font-weight: 700; }
 .stat-table .st-ng   { color: var(--ng); }
 .stat-table .st-warn { color: var(--warn); }
 .stat-table .st-ok   { color: var(--ok); }
 .stat-table .st-unk  { color: var(--unk); }
 .stat-table .st-total{ color: var(--accent); }
 /* ── Toolbar ── */
-.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+/* 2026-08-06: 表を広く使うため, 上部 (バナー/件数/フィルタ) を畳めるようにする */
+.compact-btn {
+  margin-left: auto; padding: 5px 12px; font-size: 11.5px; font-weight: 600;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: #fff; color: var(--muted); cursor: pointer; white-space: nowrap;
+  font-family: inherit;
+}
+.compact-btn:hover { background: #eef2ff; color: var(--accent); border-color: var(--accent); }
+.panel.compact .notice-box,
+.panel.compact .stats-panel,
+.panel.compact .filter-bar { display: none; }
 .search-box {
   padding: 7px 12px;
   border: 1px solid var(--border);
@@ -1259,11 +1308,11 @@ body {
 .status-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
 .row-count { font-size: 11px; color: #6b7280; white-space: nowrap; }
 /* ── Toolbar (sheet 01): 検索行 + 観点別フィルタバー ── */
-.toolbar-01 { display: block; margin-bottom: 10px; }
-.toolbar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.toolbar-01 { display: block; margin-bottom: 6px; }
+.toolbar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
 .filter-bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
-  padding: 10px 12px; background: #f8fafc; border: 1px solid var(--border);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  padding: 6px 10px; background: #f8fafc; border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 .filter-bar-title { font-size: 11px; font-weight: 700; color: #6b7280; margin-right: 2px; white-space: nowrap; }
@@ -1291,11 +1340,35 @@ tr.date-band td {
 }
 /* ── Table ── */
 .tbl-wrap {
-  overflow-x: auto;
+  /* 2026-08-06 客先依頼: ヘッダーを固定する.
+     表の中だけをスクロールさせ, thead を sticky で貼り付ける.
+     高さは画面から上部のツールバー分を引いた値. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   border-radius: var(--radius);
   box-shadow: 0 1px 4px rgba(0,0,0,0.1);
   background: #fff;
 }
+/* 見出し行の固定. 01シートは4段見出しのため, 各段に上からの位置を指定する.
+   段の高さを固定して top を積み上げる (可変にすると段がずれるため). */
+/* sticky にすると th は tr の背景を引き継がないため, 背景は th 自身に指定する
+   (指定しないと固定中の見出しが透けて, 下の行が透けて見えてしまう). */
+.data-tbl thead th {
+  position: sticky;
+  z-index: 5;
+  background: var(--navy);
+}
+.data-tbl thead tr.grp-row th { height: 30px; top: 0; background: #0e2144; }
+.data-tbl thead tr.grp-row-mid.grp-tier-a th { height: 24px; top: 30px; background: #16345f; }
+.data-tbl thead tr.grp-row-mid.grp-tier-b th { height: 24px; top: 54px; background: var(--navy); }
+.data-tbl thead tr:last-child th { height: 34px; }
+/* 4段見出し (01シート) の列名行 */
+.data-tbl thead tr.grp-row ~ tr:last-child th { top: 78px; }
+/* 1段見出し (02〜07シート) の列名行 */
+.data-tbl thead tr:first-child:last-child th { top: 0; }
+/* rowspan で結合された見出しは最上段から始まるので 0 に戻す */
+.data-tbl thead th.grp-merged { top: 0; z-index: 6; }
 .data-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
 .data-tbl thead tr { background: var(--navy); color: #fff; }
 /* 見出しをドラッグした際のブラウザ既定の選択ハイライト(薄灰青)を消す
@@ -1449,7 +1522,7 @@ JS = """
 function showTab(id) {
   document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('panel-' + id).style.display = 'block';
+  document.getElementById('panel-' + id).style.display = 'flex';
   document.querySelector('[data-tab="' + id + '"]').classList.add('active');
 }
 
@@ -1753,6 +1826,12 @@ document.addEventListener('click', e => {
 // セルのツールチップ側 (document の click) が stopPropagation するため,
 // より内側の tbody に委譲して先に処理させる。
 // もう一度同じ行をクリックすると解除。1つの表につき1行だけ選択する。
+function toggleCompact(btn) {
+  const panel = btn.closest('.panel');
+  const on = panel.classList.toggle('compact');
+  btn.textContent = on ? btn.dataset.off : btn.dataset.on;
+}
+
 function initRowSelect() {
   document.querySelectorAll('.data-tbl tbody').forEach(tbody => {
     tbody.addEventListener('click', e => {

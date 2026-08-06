@@ -26,7 +26,8 @@ from models import (
     OK, NEEDS_CHECK, NG, UNMATCHED, MULTI, RULE_MISSING, ATT_MISSING,
     worst_status, to_axis_vocab, effective_work_times,
 )
-from loaders.allowance_master_loader import load_allowance_master
+from loaders.allowance_master_loader import (load_allowance_master,
+                                             load_allowance_per_day_codes)
 from matching.employee_match import build_employee_index, resolve_employee
 from matching.place_match import build_customer_index, match_place
 from matching.approver_match import build_approver_index
@@ -161,7 +162,80 @@ def _fmt_hm(t) -> str:
     return t.strftime("%H:%M") if t is not None else ""
 
 
-def _trip_detail_summary(r: ExpenseReport, att: AttendanceLookup, perdiem_master: dict | None = None) -> dict:
+def compute_allowances(r: ExpenseReport, perdiem_master: dict | None = None,
+                       per_day_codes: set | None = None) -> dict:
+    """伝票の 日当 / 滞在費補助 の実額と, 1日・1泊あたりの単価を返す.
+
+    明細の金額欄には手当額そのものは入っていない (手当CDが付く明細の金額は
+    交通費などの実費). 実際の支給額はヘッダの手当計にまとまっているため,
+    日当は手当マスタの単価から積み上げ, 滞在費補助はその残差として求める。
+
+    2026-08-06 客先指摘:「日当は1日で1700円、2日で3400円だが反映されていない」
+    手当マスタの計算式入力フラグが1のコード (例 002「日当(連続)」) は
+    手当金額が1日あたりの単価なので, 出張日数を掛ける。日数は明細日付の
+    最初〜最後 (中日に明細が無くても数える) とする。
+
+    返り値:
+      perdiem      日当の合計額
+      stay         滞在費補助の合計額 (手当計 − 日当)
+      trip_days    出張日数 (1以上)
+      nights       宿泊数 (0以上)
+      perdiem_unit 1日あたりの日当 (上限判定用. 不明なら None)
+      stay_unit    1泊あたりの滞在費補助 (上限判定用. 泊が無ければ None)
+    """
+    has_perdiem = any(leg.allowance_cd_perdiem for leg in r.legs)
+    has_stay = any(leg.allowance_cd_stay for leg in r.legs)
+
+    trip_days = 1
+    nights = 0
+    if r.date_min and r.date_max:
+        trip_days = (r.date_max - r.date_min).days + 1
+        nights = (r.date_max - r.date_min).days
+
+    perdiem_from_master = None
+    if perdiem_master and has_perdiem:
+        per_day = per_day_codes or set()
+        amounts = []
+        for leg in r.legs:
+            cd = leg.allowance_cd_perdiem
+            if not cd:
+                continue
+            unit = perdiem_master.get(cd)
+            if unit is None:
+                amounts = None
+                break
+            amounts.append(unit * trip_days if cd in per_day else unit)
+        if amounts:
+            perdiem_from_master = sum(amounts)
+
+    if perdiem_from_master is not None:
+        perdiem = perdiem_from_master
+        stay = (r.allowance_total_declared - perdiem_from_master) if has_stay else 0
+    elif has_perdiem and not has_stay:
+        # マスタが使えない場合のフォールバック: 単一区分ならヘッダ手当計をそのまま帰属
+        # (2026-07-10 客先指摘: 日当計1,700に対し日当金額が0のままだった).
+        perdiem = r.allowance_total_declared
+        stay = 0
+    elif has_stay and not has_perdiem:
+        perdiem = 0
+        stay = r.allowance_total_declared
+    else:
+        perdiem = sum(leg.amount for leg in r.legs if leg.allowance_cd_perdiem)
+        stay = sum(leg.amount for leg in r.legs if leg.allowance_cd_stay)
+
+    return {
+        "perdiem": perdiem,
+        "stay": stay,
+        "trip_days": trip_days,
+        "nights": nights,
+        "perdiem_unit": (perdiem // trip_days) if (perdiem and trip_days) else None,
+        "stay_unit": (stay // nights) if (stay and nights) else None,
+    }
+
+
+def _trip_detail_summary(r: ExpenseReport, att: AttendanceLookup,
+                         perdiem_master: dict | None = None,
+                         per_day_codes: set | None = None) -> dict:
     """01シート追加列 (§画面ビューワー拡張) 用の集計.
 
     出張先/取引先は移動レッグの照合結果から集約 (複数該当時は先頭を採用).
@@ -212,33 +286,9 @@ def _trip_detail_summary(r: ExpenseReport, att: AttendanceLookup, perdiem_master
                         - (work_end.hour * 60 + work_end.minute))
         diff_label = f"{diff_min}分"
 
-    has_perdiem = any(leg.allowance_cd_perdiem for leg in r.legs)
-    has_stay = any(leg.allowance_cd_stay for leg in r.legs)
-
-    # 手当マスタ (手当CD -> 公式金額, 2026-07-10 客先提供) が使える場合は,
-    # 日当CDから直接公式金額を積算し, 滞在費補助はヘッダ手当計との残差とする。
-    # これは同一明細に日当CD・滞在CDが両方立つケース (内訳を一意に決められない)
-    # でも成立する — 日当側だけ独立に確定できるため.
-    perdiem_from_master = None
-    if perdiem_master and has_perdiem:
-        amounts = [perdiem_master.get(leg.allowance_cd_perdiem) for leg in r.legs if leg.allowance_cd_perdiem]
-        if all(a is not None for a in amounts):
-            perdiem_from_master = sum(amounts)
-
-    if perdiem_from_master is not None:
-        perdiem_amount = perdiem_from_master
-        stay_amount = (r.allowance_total_declared - perdiem_from_master) if has_stay else 0
-    elif has_perdiem and not has_stay:
-        # マスタが使えない場合のフォールバック: 単一区分ならヘッダ手当計をそのまま帰属
-        # (2026-07-10 客先指摘: 日当計1,700に対し日当金額が0のままだった).
-        perdiem_amount = r.allowance_total_declared
-        stay_amount = 0
-    elif has_stay and not has_perdiem:
-        perdiem_amount = 0
-        stay_amount = r.allowance_total_declared
-    else:
-        perdiem_amount = sum(leg.amount for leg in r.legs if leg.allowance_cd_perdiem)
-        stay_amount = sum(leg.amount for leg in r.legs if leg.allowance_cd_stay)
+    alw = compute_allowances(r, perdiem_master, per_day_codes)
+    perdiem_amount = alw["perdiem"]
+    stay_amount = alw["stay"]
     # 宿泊費(ホテル代)は手当2CD(allowance_cd_lodging)が実データで常に空のため使えず,
     # 宿泊泊数と同じ判定軸 (transport=ホテル) の明細金額合算で代用する.
     # 宿泊税・入湯税もホテル代に付随する費用のため合算に含める (2026-07-07 客先確認:
@@ -379,6 +429,53 @@ def _classify_attendance_by_window(day, work_start: time, work_end: time):
     return before, after
 
 
+# 片方のシステムにしかデータが無く, 突合そのものができない状態 (2026-08-06).
+# 出勤簿の移動列は全体の約12%しか入力されておらず, 申請の誤りではなく
+# 勤怠側の入力漏れであることが多い. 乖離の証拠ではないため 要確認 (黄) とは分け,
+# 「未確認」で始めて Excel/HTML とも灰色表示にし, 総合判定にも反映しない.
+# どちら側が欠けているかは差分列 (勤怠打刻なし / 精算計上なし / 作業計上なし) で示す.
+UNVERIFIABLE = "未確認(突合不可)"
+
+
+def _work_window_verdict(exp_pair: tuple, att_pair: tuple, ok_minutes: int) -> tuple[str, str]:
+    """勤務時間の窓は「作業･打合せが勤怠の内側に収まっているか」で判定する.
+
+    2026-08-06 客先指摘「要確認が本当にOKでないのか確認したい」への対応。
+    従来は 作業･打合せ の開始/終了を 出退勤打刻 と直接比較していたが,
+    作業は勤務時間の一部でしかないため乖離が出て当然だった
+    (例: 09:00-15:00 に客先で作業し, その後移動して 17:30 退勤 → 2:30差).
+    7月データでは 151件中 144件がこの誤検知だった。
+
+    正しい問いは「申告した作業時間が勤怠の勤務時間に収まっているか」なので,
+    包含関係で判定する。はみ出した場合のみ要確認とする。
+    """
+    es, ee = exp_pair
+    as_, ae = att_pair
+    if es is None and ee is None and as_ is None and ae is None:
+        return "移動なし", OK
+    if as_ is None and ae is None:
+        return "勤怠打刻なし", UNVERIFIABLE
+    if es is None and ee is None:
+        return "作業計上なし", UNVERIFIABLE
+    if es is None or ee is None or as_ is None or ae is None:
+        return "データなし", UNVERIFIABLE
+
+    def _m(t) -> int:
+        return t.hour * 60 + t.minute
+
+    # はみ出しの許容は他の窓と同じ 10分 (cfg.off_hours_diff_ok_minutes) に合わせる
+    over_before = max(0, _m(as_) - _m(es))   # 出勤前に作業していた分
+    over_after = max(0, _m(ee) - _m(ae))     # 退勤後に作業していた分
+    if max(over_before, over_after) <= ok_minutes:
+        return "勤務時間内", OK
+    parts = []
+    if over_before:
+        parts.append(f"出勤前{over_before // 60}:{over_before % 60:02d}")
+    if over_after:
+        parts.append(f"退勤後{over_after // 60}:{over_after % 60:02d}")
+    return "／".join(parts), NEEDS_CHECK
+
+
 def _is_holiday(day) -> bool:
     """[現在未使用 / 2026-07-27〜] _split_by_work_leg_anchor と対で残置 (下記参照).
     出勤簿カレンダー種別から休日判定 (平日以外=法定外/法定内). 勤怠データが無い日は
@@ -411,10 +508,20 @@ def _off_hours_window_verdict(exp_pair: tuple, att_pair: tuple, ok_minutes: int)
     if exp_empty and att_empty:
         return "移動なし", OK
 
+    # 2026-08-06: 楽々勤怠に移動の打刻が無いケース. 出勤簿の移動列は
+    # 全体の約12%しか入力されておらず, 申請の誤りではなく勤怠側の
+    # 入力漏れであるため, 要確認ではなく「未確認」として区別する
+    # (総合判定にも反映しない — 突合材料が無いだけで乖離の証拠ではない).
+    if att_empty:
+        return "勤怠打刻なし", UNVERIFIABLE
+    if exp_empty:
+        return "精算計上なし", UNVERIFIABLE
+
     d_start = _diff_min(exp_pair[0], att_pair[0])
     d_end = _diff_min(exp_pair[1], att_pair[1])
     if d_start is None or d_end is None:
-        return "データなし", NEEDS_CHECK
+        # 片側の開始または終了だけが欠けている場合も突合できない
+        return "データなし", UNVERIFIABLE
     worse = max(d_start, d_end)
     if worse == 0:
         return "一致", OK
@@ -481,7 +588,7 @@ def _off_hours_row(d: date | None, exp_before, exp_work, exp_after,
     """1日分の 定時外の移動時間 行 dict を組み立てる."""
     att_work_start, att_work_end = att_work
     before_diff, before_chk = _off_hours_window_verdict(exp_before, att_before, ok_min)
-    work_diff, work_chk = _off_hours_window_verdict(exp_work, (att_work_start, att_work_end), ok_min)
+    work_diff, work_chk = _work_window_verdict(exp_work, (att_work_start, att_work_end), ok_min)
     after_diff, after_chk = _off_hours_window_verdict(exp_after, att_after, ok_min)
 
     return {
@@ -535,9 +642,11 @@ def _off_hours_axis_status(off_hours_rows: list[dict]) -> str:
     statuses = []
     for row in off_hours_rows:
         for _, diff_key, chk_key in _OFF_HOURS_WINDOWS:
-            if row.get(diff_key) == "データなし":
+            chk = row.get(chk_key, OK)
+            # 突合材料が無いだけの状態は乖離の証拠ではないので総合判定に含めない
+            if row.get(diff_key) == "データなし" or str(chk).startswith("未確認"):
                 continue
-            statuses.append(row.get(chk_key, OK))
+            statuses.append(chk)
     return worst_status(statuses)
 
 
@@ -547,7 +656,8 @@ def _off_hours_reasons(off_hours_rows: list[dict]) -> list[str]:
     for row in off_hours_rows:
         day = row.get("日付") or ""
         for label, diff_key, chk_key in _OFF_HOURS_WINDOWS:
-            if row.get(diff_key) == "データなし" or row.get(chk_key) == OK:
+            chk = row.get(chk_key, OK)
+            if row.get(diff_key) == "データなし" or chk == OK or str(chk).startswith("未確認"):
                 continue
             prefix = f"{day} " if day else ""
             reasons.append(f"{prefix}{label}: {row[diff_key]}")
@@ -594,9 +704,11 @@ def build_check_sheet(reports, employees, customers, approver_rules,
     att = AttendanceLookup(attendance_days)
 
     perdiem_master = None
+    per_day_codes: set[str] = set()
     if getattr(cfg, "allowance_master_path", None):
         master = load_allowance_master(cfg.allowance_master_path)
         perdiem_master = master.get("手当1")
+        per_day_codes = load_allowance_per_day_codes(cfg.allowance_master_path)
 
     if getattr(cfg, "mock_normal_route_arrival", False):
         _apply_mock_normal_route_arrival(reports, att)
@@ -609,7 +721,7 @@ def build_check_sheet(reports, employees, customers, approver_rules,
     for no, r in enumerate(reports, start=1):
         cr_trip = check_trip_reality(r, att, cfg)
         cr_labor = check_labor(r, att, cfg)
-        cr_amt = check_amount(r, cfg)
+        cr_amt = check_amount(r, cfg, compute_allowances(r, perdiem_master, per_day_codes))
         cr_dup = dup_results.get(r.voucher_no)
         cr_rcpt = check_receipt(r, cfg)
         cr_appr = check_approval_route(r, aidx, eidx, cfg)
@@ -648,7 +760,7 @@ def build_check_sheet(reports, employees, customers, approver_rules,
                 suggestions.append(cr.suggestion)
 
         period = f"{_d(r.date_min)}〜{_d(r.date_max)}"
-        detail = _trip_detail_summary(r, att, perdiem_master)
+        detail = _trip_detail_summary(r, att, perdiem_master, per_day_codes)
         nights = detail.pop("宿泊泊数")
         lodging_label = ""
         if nights:
@@ -796,11 +908,18 @@ def build_check_sheet(reports, employees, customers, approver_rules,
     rule_rows = _build_rule_rows(cfg)
 
     # --- 既知欠落バナー ---
+    # 2026-08-06 客先指摘: 表の上のバナーは場所を取るだけなので出さない.
+    # 唯一の内容だった「勤怠データ対象月」は 05_取込ログ の詳細欄へ移した
+    # (どの月の勤怠を読んだかは 未確認(勤怠データ欠落) の原因確認に必要なため).
     banners = list(cfg.known_gaps)
-    if attendance_days:
+    if attendance_days and import_log:
         months = sorted({(d.work_date.year, d.work_date.month)
                          for d in attendance_days if d.work_date})
-        banners.append("勤怠データ対象月: " + ", ".join(f"{y}-{m:02d}" for y, m in months))
+        label = "対象月 " + ", ".join(f"{y}-{m:02d}" for y, m in months)
+        for row in import_log:
+            if "勤怠" in str(row.get("区分", "")):
+                row["詳細"] = f'{row.get("詳細", "")} / {label}'.strip(" /")
+                break
 
     return {
         "primary": primary_rows,

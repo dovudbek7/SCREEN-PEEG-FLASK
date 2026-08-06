@@ -240,7 +240,8 @@ def _check_long_distance(leg_no: int, amount: int, km_lower: int | None,
 # 規程ベース上限判定
 # ---------------------------------------------------------------------------
 
-def _check_rules(r: ExpenseReport, cfg: Config) -> tuple[str, list[str], dict]:
+def _check_rules(r: ExpenseReport, cfg: Config,
+                 allowances: dict | None = None) -> tuple[str, list[str], dict]:
     if not cfg.has_amount_rules():
         return (
             RULE_MISSING,
@@ -258,29 +259,16 @@ def _check_rules(r: ExpenseReport, cfg: Config) -> tuple[str, list[str], dict]:
     has_lodging_cd = any(leg.allowance_cd_lodging for leg in r.legs)
 
     for leg in r.legs:
-        # (1) 出張日当 (手当1CD)
-        if leg.allowance_cd_perdiem:
-            table = limits.get("出張日当", {})
-            _check_grade_allowance(
-                leg.leg_no, "出張日当", leg.amount,
-                table, grade, overs, needs_check,
-            )
+        # (1) 出張日当・(3) 滞在補助費 は明細の金額欄では判定しない。
+        #     手当CDが付く明細の金額は交通費などの実費であり手当額ではないため
+        #     (例: 日当CDが付いた電車代 3,520円 を日当上限 1,700円と比較して
+        #     誤って上限超過にしていた。2026-08-06 修正)。
+        #     実額はヘッダの手当計から算出し, 下の (8) で1日/1泊あたりに
+        #     換算して判定する。
 
-        # (2) ホテル代 (手当2CD) — 宿泊実態あり
-        if leg.allowance_cd_lodging:
-            hotel = limits.get("ホテル代", {})
-            _check_hotel(
-                leg.leg_no, leg.amount, leg.dest_prefecture, grade,
-                hotel, overs, needs_check,
-            )
-
-        # (3) 滞在補助費 (手当3CD)
-        if leg.allowance_cd_stay:
-            table = limits.get("滞在補助費", {})
-            _check_grade_allowance(
-                leg.leg_no, "滞在補助費", leg.amount,
-                table, grade, overs, needs_check,
-            )
+        # (2) ホテル代は 手当2CD ではなく宿泊日ごとに判定する (下の (7) を参照).
+        #     実データで 手当2CD が常に空のため, ここでの判定は行わない
+        #     (2026-08-06: 二重に上限判定しないよう明細ループからは外した).
 
         # (4) 出張加算日当 (account_name 識別)
         if leg.account_name and "出張加算日当" in leg.account_name:
@@ -316,6 +304,49 @@ def _check_rules(r: ExpenseReport, cfg: Config) -> tuple[str, list[str], dict]:
                 "理由": "交通・宿泊費が委託サービス費で申請されています。旅費交通費への変更要確認",
             })
 
+    # (7) ホテル代の上限 — 1泊あたりに換算して判定する
+    #
+    # 2026-08-06 客先質問「ホテル代上限は宿泊日数に上限を計算しているか？」への対応。
+    # 従来は 手当2CD (allowance_cd_lodging) を条件にしていたが, 実データでは
+    # この列が常に空のため上限判定が一度も動いていなかった。
+    #
+    # 実データではホテル代が「滞在全体の合計」として初日の明細1件に計上される
+    # (例: 2泊で 18,900円 を1行で計上)。そのため日付でまとめるのではなく,
+    # 伝票のホテル関連明細を合算し, 泊数で割った額を1泊分として上限と比較する。
+    # 宿泊税・入湯税を含めるのは 2026-07-07 客先確認による。
+    hotel_limits = limits.get("ホテル代", {})
+    hotel_legs = [lg for lg in r.legs
+                  if lg.transport in ("ﾎﾃﾙ", "ホテル", "宿泊税", "入湯税")]
+    if hotel_limits and hotel_legs:
+        hotel_total = sum(lg.amount or 0 for lg in hotel_legs)
+        nights = 1
+        if r.date_min and r.date_max:
+            nights = max(1, (r.date_max - r.date_min).days)
+        per_night = hotel_total // nights
+        prefecture = next((lg.dest_prefecture for lg in r.legs if lg.dest_prefecture), None)
+        leg_no = next((lg.leg_no for lg in hotel_legs
+                       if lg.transport in ("ﾎﾃﾙ", "ホテル")), hotel_legs[0].leg_no)
+        if per_night > 0:
+            _check_hotel(leg_no, per_night, prefecture, grade,
+                         hotel_limits, overs, needs_check)
+
+    # (8) 出張日当・滞在補助費の上限 — 1日 / 1泊あたりに換算して判定する
+    #
+    # 実額は明細ではなくヘッダの手当計にまとまっているため, 呼び出し側
+    # (checksheet.compute_allowances) が算出した単価を受け取って判定する。
+    # allowances が渡されない場合 (単体テスト等) はこの判定を行わない。
+    if allowances:
+        unit = allowances.get("perdiem_unit")
+        if unit:
+            _check_grade_allowance(0, "出張日当(1日あたり)", unit,
+                                   limits.get("出張日当", {}), grade,
+                                   overs, needs_check)
+        unit = allowances.get("stay_unit")
+        if unit:
+            _check_grade_allowance(0, "滞在補助費(1泊あたり)", unit,
+                                   limits.get("滞在補助費", {}), grade,
+                                   overs, needs_check)
+
     statuses: list[str] = []
     reasons: list[str] = []
     evidence: dict = {}
@@ -338,10 +369,11 @@ def _check_rules(r: ExpenseReport, cfg: Config) -> tuple[str, list[str], dict]:
 # 公開エントリポイント
 # ---------------------------------------------------------------------------
 
-def check_amount(r: ExpenseReport, cfg: Config) -> CheckResult:
+def check_amount(r: ExpenseReport, cfg: Config,
+                 allowances: dict | None = None) -> CheckResult:
     """金額規程チェック (§6.3). データ整合性 + 規程上限判定の総合."""
     integ_status, integ_reasons, integ_ev = _check_integrity(r)
-    rule_status, rule_reasons, rule_ev = _check_rules(r, cfg)
+    rule_status, rule_reasons, rule_ev = _check_rules(r, cfg, allowances)
 
     overall = worst_status([integ_status, rule_status])
 

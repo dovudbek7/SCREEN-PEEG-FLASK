@@ -63,8 +63,13 @@ def check_receipt(r: ExpenseReport, cfg: Config) -> CheckResult:
 
         if is_exempt:
             # 運賃/IC 系は原則免除. ただし高額なら要確認.
-            #   規程あり: 閾値超過で要確認. 規程なし: 暫定高額閾値で見逃し防止.
-            limit = threshold if has_rule else high_value
+            #
+            # 2026-08-06 客先指摘: 乗車券は特急券と別売りの場合, 領収書の添付が
+            # 不要な運用になっている. それにもかかわらず全件が要確認になっていた.
+            # 原因は免除対象にも一般閾値 (1,000円) を当てていたため — 電車賃は
+            # 1,000円を超えるのが普通で, 免除の意味が無くなっていた.
+            # 免除対象には高額判定用の閾値 (既定10,000円) を使う.
+            limit = high_value
             if amount >= limit:
                 if not has_rule:
                     rule_missing_seen = True

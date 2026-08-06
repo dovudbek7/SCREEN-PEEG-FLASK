@@ -23,3 +23,22 @@ def load_allowance_master(path: str) -> dict[str, dict[str, int]]:
                 continue
             result.setdefault(kind, {})[code] = amount
     return result
+
+
+def load_allowance_per_day_codes(path: str) -> set[str]:
+    """1日あたりの単価として扱う手当コードの集合を返す.
+
+    手当マスタの「計算式入力フラグ」が 1 のコードは, 手当金額が
+    1日あたりの単価であり, 出張日数を掛けた額が実際の支給額になる
+    (例: 手当1 の 002「日当(連続)」= 1,700円/日 → 3日間で 5,100円)。
+    フラグが 0 のコードは固定額。
+
+    2026-08-06 客先指摘:「日当は1日で1700円、2日で3400円だが反映されていない」
+    への対応。従来は単価をそのまま日当金額として表示していた。
+    """
+    codes: set[str] = set()
+    with open(path, encoding="cp932", newline="") as f:
+        for row in csv.DictReader(f):
+            if (row.get("計算式入力フラグ") or "").strip() == "1":
+                codes.add(row["手当コード"].strip())
+    return codes
