@@ -337,7 +337,30 @@ def _check_rules(r: ExpenseReport, cfg: Config,
     # 実額は明細ではなくヘッダの手当計にまとまっているため, 呼び出し側
     # (checksheet.compute_allowances) が算出した単価を受け取って判定する。
     # allowances が渡されない場合 (単体テスト等) はこの判定を行わない。
-    if allowances:
+    # スクリーングループ京都滋賀事業所間の出張は 出張日当・滞在費補助とも
+    # 支給対象外 (2026-08-07 客先提供の規程). 該当する場合は支給されている
+    # こと自体が確認対象になるため, 上限判定ではなく要確認として挙げる.
+    kyoto_shiga_places = getattr(cfg, "screen_kyoto_shiga_places", ()) or ()
+    is_kyoto_shiga = bool(kyoto_shiga_places) and all(
+        any(p in f"{lg.origin_raw or ''}{lg.dest_raw or ''}" for p in kyoto_shiga_places)
+        for lg in r.legs
+        if (lg.origin_raw or lg.dest_raw)
+        and lg.transport not in ("ﾎﾃﾙ", "ホテル", "宿泊税", "入湯税")
+    ) and any(
+        any(p in f"{lg.origin_raw or ''}{lg.dest_raw or ''}" for p in kyoto_shiga_places)
+        for lg in r.legs
+    )
+
+    if allowances and is_kyoto_shiga:
+        paid = (allowances.get("perdiem") or 0) + (allowances.get("stay") or 0)
+        if paid > 0:
+            needs_check.append({
+                "明細No": 0, "種別": "京都滋賀事業所間出張",
+                "金額": paid,
+                "理由": "スクリーングループ京都滋賀事業所間の出張は"
+                        "出張日当・滞在費補助とも支給対象外です。支給内容をご確認ください。",
+            })
+    elif allowances:
         unit = allowances.get("perdiem_unit")
         if unit:
             _check_grade_allowance(0, "出張日当(1日あたり)", unit,

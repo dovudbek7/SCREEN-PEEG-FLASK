@@ -642,6 +642,7 @@ I18N = {
         "lbl_total":    "合計件数",
         "legend_title": "ステータス凡例：",
         "filter_status_all": "ステータス：すべて",
+        "jump_title": "区分へ移動：",
         "compact_on":  "表を広く表示",
         "compact_off": "件数・フィルタを表示",
         "compact_hint": "バナー・件数サマリー・絞り込みを隠して, 表を画面いっぱいに表示します",
@@ -673,6 +674,7 @@ I18N = {
         "lbl_total":    "Jami ariza",
         "legend_title": "Status belgilari:",
         "filter_status_all": "Status: barchasi",
+        "jump_title": "Bo'limga o'tish:",
         "compact_on":  "Jadvalni kengaytirish",
         "compact_off": "Statistika va filtrni ko'rsatish",
         "compact_hint": "Banner, statistika va filtrlarni yashirib, jadvalni to'liq ekranga chiqaradi",
@@ -1083,10 +1085,37 @@ def _render_sheet(sid: str, label: str, data: dict, i18n: dict) -> str:
         {status_opts}
       </select>
     </div>"""
+        # 2026-08-07 客先指摘: どのフィルタがどの列に対応するのか分かりにくい.
+        #   ・ラベルに区分番号 (1.〜4.) を付ける
+        #   ・フィルタを操作すると該当列へ横スクロールし, その列を強調する
+        sheet_groups = SHEET01_GROUPS if sid == "01" else None
+        gmap = _group_class_map(sheet_groups) if sheet_groups else {}
+        # 区分の先頭列へ飛ぶボタン (横に長い表を左右に動かしやすくする)
+        jump_html = ""
+        if sheet_groups:
+            col = 0
+            btns = []
+            for label, span in sheet_groups:
+                if label:
+                    btns.append(
+                        f'<button type="button" class="jump-btn" '
+                        f'onclick="jumpToGroup(\'{sid}\', {col})">'
+                        f'{tr_headers.get(label, label)}</button>'
+                    )
+                col += span
+            jump_html = "".join(btns)
+        def _gnum(c: int) -> str:
+            cls = gmap.get(c, "")
+            idx = int(cls.split()[0][1:]) if cls.startswith("g") else -1
+            label = sheet_groups[idx][0] if (sheet_groups and 0 <= idx < len(sheet_groups)) else ""
+            head = label.split(".")[0].strip() if "." in label else ""
+            return f'<span class="chip-grp">{head}.</span>' if head else ""
         chip_html = "".join(
             f'<div class="filter-chip">'
-            f'<label for="filter-{sid}-{c}">{chip_label(c)}</label>'
-            f'<select id="filter-{sid}-{c}" onchange="applyFiltersMulti(\'{sid}\', \'{suffix}\')">'
+            f'<label for="filter-{sid}-{c}">{_gnum(c)}{chip_label(c)}</label>'
+            f'<select id="filter-{sid}-{c}" data-col="{c}"'
+            f' onfocus="revealColumn(\'{sid}\', {c})"'
+            f' onchange="revealColumn(\'{sid}\', {c}); applyFiltersMulti(\'{sid}\', \'{suffix}\')">'
             f'<option value="">{i18n["filter_status_all"]}</option>{status_opts}</select>'
             f'</div>'
             for c in axis_cols if c < len(header)
@@ -1105,6 +1134,9 @@ def _render_sheet(sid: str, label: str, data: dict, i18n: dict) -> str:
     {overall_html}
     {chip_html}
   </div>
+</div>
+<div class="jump-bar">
+  <span>{i18n.get('jump_title', '')}</span>{jump_html}
 </div>"""
     else:
         # 単一ステータス列を持つシートにも検索+ステータス絞込を展開する
@@ -1326,6 +1358,22 @@ body {
 .filter-bar-title { font-size: 11px; font-weight: 700; color: #6b7280; margin-right: 2px; white-space: nowrap; }
 .filter-chip { display: flex; flex-direction: column; gap: 2px; }
 .filter-chip label { font-size: 10px; color: #6b7280; font-weight: 600; white-space: nowrap; }
+.chip-grp { color: var(--accent); font-weight: 700; margin-right: 3px; }
+/* フィルタから飛んだ列を一時的に強調する (2026-08-07) */
+.data-tbl td.col-focus, .data-tbl th.col-focus {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+/* 表の上に置く横スクロール用のショートカット */
+.jump-bar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-bottom: 6px; font-size: 11px; color: var(--muted);
+}
+.jump-btn {
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: #fff; color: var(--muted); cursor: pointer; font-size: 11px;
+  font-weight: 600; font-family: inherit; white-space: nowrap;
+}
+.jump-btn:hover { background: #eef2ff; color: var(--accent); border-color: var(--accent); }
 .filter-chip select {
   padding: 5px 8px; border: 1px solid var(--border); border-radius: 999px;
   font-size: 11.5px; font-family: inherit; background: #fff; color: var(--text);
@@ -1855,6 +1903,51 @@ function initStickyHeader() {
 }
 window.addEventListener('resize', initStickyHeader);
 
+// ── フィルタ・ジャンプで該当列を表示する (2026-08-07 客先要望) ──
+// 横に長い表で「どのフィルタがどの列か」が分かりにくいため, フィルタを触ると
+// その列までスクロールし, 一瞬だけ枠線で強調する。
+let _focusTimer = null;
+function revealColumn(sid, col) {
+  const table = document.getElementById('tbl-' + sid);
+  if (!table) return;
+  const wrap = table.closest('.tbl-wrap');
+  const head = table.querySelector('thead tr:last-child');
+  const th = head && head.cells[col];
+  if (!wrap || !th) return;
+
+  // 左に固定表示している列と重ならない位置へ寄せる
+  wrap.scrollTo({ left: Math.max(0, th.offsetLeft - 40), behavior: 'smooth' });
+
+  table.querySelectorAll('.col-focus').forEach(el => el.classList.remove('col-focus'));
+  th.classList.add('col-focus');
+  table.querySelectorAll('tbody tr').forEach(tr => {
+    if (tr.cells[col]) tr.cells[col].classList.add('col-focus');
+  });
+  clearTimeout(_focusTimer);
+  _focusTimer = setTimeout(() => {
+    table.querySelectorAll('.col-focus').forEach(el => el.classList.remove('col-focus'));
+  }, 2500);
+}
+
+// 区分の先頭列へ飛ぶ
+function jumpToGroup(sid, col) { revealColumn(sid, col); }
+
+// マウスホイールで横スクロール (Shift 不要). 縦に動かせる余地がある場合は
+// 通常どおり縦スクロールを優先する。
+function initWheelScroll() {
+  document.querySelectorAll('.tbl-wrap').forEach(wrap => {
+    wrap.addEventListener('wheel', e => {
+      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      const atTop = wrap.scrollTop <= 0 && e.deltaY < 0;
+      const atEnd = wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 1 && e.deltaY > 0;
+      if (!atTop && !atEnd) return;      // まだ縦に動けるので任せる
+      if (wrap.scrollWidth <= wrap.clientWidth) return;
+      wrap.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }, { passive: false });
+  });
+}
+
 function initRowSelect() {
   document.querySelectorAll('.data-tbl tbody').forEach(tbody => {
     tbody.addEventListener('click', e => {
@@ -1875,6 +1968,7 @@ showTab('01');
 regroupDates('02');
 initRowSelect();
 initStickyHeader();
+initWheelScroll();
 """
 
 
