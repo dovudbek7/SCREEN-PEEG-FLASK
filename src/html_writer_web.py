@@ -1359,16 +1359,13 @@ tr.date-band td {
   z-index: 5;
   background: var(--navy);
 }
-.data-tbl thead tr.grp-row th { height: 30px; top: 0; background: #0e2144; }
-.data-tbl thead tr.grp-row-mid.grp-tier-a th { height: 24px; top: 30px; background: #16345f; }
-.data-tbl thead tr.grp-row-mid.grp-tier-b th { height: 24px; top: 54px; background: var(--navy); }
-.data-tbl thead tr:last-child th { height: 34px; }
-/* 4段見出し (01シート) の列名行 */
-.data-tbl thead tr.grp-row ~ tr:last-child th { top: 78px; }
-/* 1段見出し (02〜07シート) の列名行 */
-.data-tbl thead tr:first-child:last-child th { top: 0; }
-/* rowspan で結合された見出しは最上段から始まるので 0 に戻す */
-.data-tbl thead th.grp-merged { top: 0; z-index: 6; }
+.data-tbl thead tr.grp-row th { background: #0e2144; }
+.data-tbl thead tr.grp-row-mid.grp-tier-a th { background: #16345f; }
+.data-tbl thead tr.grp-row-mid.grp-tier-b th { background: var(--navy); }
+.data-tbl thead th.grp-merged { z-index: 6; }
+/* top は実際の行の高さを測って JS (initStickyHeader) が設定する.
+   CSS に固定値を書くと, フォントや文字数で行の高さが変わったときに
+   段がずれてしまうため (2026-08-07 客先指摘: 下にスクロールするとずれる). */
 .data-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
 .data-tbl thead tr { background: var(--navy); color: #fff; }
 /* 見出しをドラッグした際のブラウザ既定の選択ハイライト(薄灰青)を消す
@@ -1524,6 +1521,7 @@ function showTab(id) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + id).style.display = 'flex';
   document.querySelector('[data-tab="' + id + '"]').classList.add('active');
+  initStickyHeader();
 }
 
 // ── suffix (件/ta) を panel の data-suffix から解決 ──
@@ -1832,6 +1830,23 @@ function toggleCompact(btn) {
   btn.textContent = on ? btn.dataset.off : btn.dataset.on;
 }
 
+// ── 見出し固定の位置合わせ (2026-08-07) ──
+// 見出しは最大4段あり, 各段の sticky top は「その段より上の段の高さの合計」に
+// なる. 行の高さは中身で変わるので, CSS に固定値を書かず実測して設定する。
+// rowspan で結合されたセルも, 自分が属する行の top を使えば正しく並ぶ。
+function initStickyHeader() {
+  document.querySelectorAll('.data-tbl thead').forEach(thead => {
+    let top = 0;
+    Array.from(thead.rows).forEach(tr => {
+      const h = tr.getBoundingClientRect().height;
+      if (!h) return;                       // 非表示タブは測れないので後で再実行
+      Array.from(tr.cells).forEach(th => { th.style.top = top + 'px'; });
+      top += h;
+    });
+  });
+}
+window.addEventListener('resize', initStickyHeader);
+
 function initRowSelect() {
   document.querySelectorAll('.data-tbl tbody').forEach(tbody => {
     tbody.addEventListener('click', e => {
@@ -1851,6 +1866,7 @@ function initRowSelect() {
 showTab('01');
 regroupDates('02');
 initRowSelect();
+initStickyHeader();
 """
 
 

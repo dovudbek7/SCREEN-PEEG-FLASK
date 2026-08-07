@@ -301,11 +301,12 @@ def _trip_detail_summary(r: ExpenseReport, att: AttendanceLookup,
     # 明細の金額欄が0のまま手当CDだけ立っているケースがあり (2026-07-08 客先指摘:
     # 日当計が元データ1,700に対しチェックシート上0), 明細合算だと取りこぼすため.
     perdiem_total = r.allowance_total_declared
-    # 宿泊実態は手当CD(手当2/3CD の記帳ゆれ)ではなく実際のホテル計上日で数える.
-    nights = len({
-        leg.leg_date for leg in r.legs
-        if leg.transport in ("ﾎﾃﾙ", "ホテル") and leg.leg_date
-    })
+    # 宿泊数は出張期間から数える (2026-08-06 客先指摘:「3行=2泊3日なのに1泊と
+    # 表示される」). ホテル明細は滞在全体を初日の1行にまとめて計上することが
+    # あるため, 明細の日付を数えると泊数を取りこぼす.
+    nights = alw["nights"] if any(
+        leg.transport in ("ﾎﾃﾙ", "ホテル") for leg in r.legs
+    ) else 0
 
     return {
         "出張先": prefectures[0] if prefectures else "",
