@@ -64,6 +64,11 @@ def _translate_cell_val(val: str, i18n: dict) -> str:
     if m:
         return f"Dam olish kuni harakat (qator {m.group(1)})"
 
+    m = re.match(r'勤務日でない日に移動(?: \[(.+?)\])? \(明細(.+)\)', val)
+    if m:
+        why = f" [{m.group(1)}]" if m.group(1) else ""
+        return f"Ish kuni bo'lmagan kunda harakat{why} (qator {m.group(2)})"
+
     m = re.match(r'金額上限超過 \((\d+)件\)', val)
     if m:
         return f"Summa limiti oshdi ({m.group(1)} ta)"
@@ -700,6 +705,8 @@ I18N = {
             "一致":                           "Mos keladi",
             "データなし":                     "Ma'lumot yo'q",
             "移動なし":                       "Harakat yo'q",
+            "作業なし":                       "Ish qatori yo'q",
+            "打刻内に収まる":                 "Davomat ichida",
             "宿泊なし":                       "Tunash yo'q",
             "勤務時間内":                     "Ish vaqti ichida",
             "勤怠打刻なし":                   "Davomatda belgi yo'q",

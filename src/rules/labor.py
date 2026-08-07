@@ -126,10 +126,26 @@ def check_labor(r: ExpenseReport, att: AttendanceLookup, cfg: Config) -> CheckRe
         if cur is None or leg.time_end > cur.time_end:
             last_leg_by_date[leg.leg_date] = leg
 
+    # ただし移動のあとに 作業･打合せ / 宿泊 が続く日は「帰路」ではない —
+    # 客先に着いてから働き, その後に退勤するため, 移動終了と退勤時刻が
+    # 離れているのが当然である (2026-08-07 客先指摘: MEBAS0018401 で
+    # 11:40-13:00 の往路と 20:30 の退勤を比べて要確認になっていた).
+    # そのような日は乖離判定の対象から外す.
+    for d, last in list(last_leg_by_date.items()):
+        if any(
+            lg.leg_date == d
+            and lg.transport in ("作業･打合せ", "ﾎﾃﾙ", "ホテル")
+            and lg.time_start is not None
+            and lg.time_start >= last.time_end
+            for lg in r.legs
+        ):
+            del last_leg_by_date[d]
+
     contributions: list[str] = []
     reasons: list[str] = []
     late_night_legs: list[int] = []
     nonwork_legs: list[int] = []
+    nonwork_reasons: set = set()    # 非労働日/休暇の内訳 (有休・法定内 等)
     att_missing_legs: list[int] = []
     corroborated_legs: list[int] = []
     time_gap_legs: list[int] = []
@@ -173,6 +189,8 @@ def check_labor(r: ExpenseReport, att: AttendanceLookup, cfg: Config) -> CheckRe
             # 非労働日/休暇に移動 — 休出実態が無ければ要確認
             contributions.append(NEEDS_CHECK)
             nonwork_legs.append(leg.leg_no)
+            # 平日の休暇取得なのか休日なのかを理由文に出せるよう控える
+            nonwork_reasons.add(day.application_content or presence)
         else:
             # 在席状態が不明 → 裏付け不可で欠落扱い
             contributions.append(ATT_MISSING)
@@ -214,7 +232,11 @@ def check_labor(r: ExpenseReport, att: AttendanceLookup, cfg: Config) -> CheckRe
 
     # --- 理由文 (人間可読) の組立 ---
     if nonwork_legs:
-        reasons.append(f"非労働日/休暇に移動 (明細{','.join(map(str, nonwork_legs))})")
+        # 2026-08-07 客先指摘: 「非労働日/休暇」だと休日 (土日祝) と混同されるため,
+        # 平日の休暇取得なのか休日なのかが分かるよう内訳を添える.
+        why = f" [{'/'.join(sorted(nonwork_reasons))}]" if nonwork_reasons else ""
+        reasons.append(
+            f"勤務日でない日に移動{why} (明細{','.join(map(str, nonwork_legs))})")
     if late_night_legs:
         reasons.append(f"深夜移動 要確認 (明細{','.join(map(str, late_night_legs))})")
     if time_gap_legs:

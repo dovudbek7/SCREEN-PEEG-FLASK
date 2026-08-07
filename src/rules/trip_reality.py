@@ -163,6 +163,7 @@ def check_trip_reality(r: ExpenseReport, att: AttendanceLookup, cfg: Config) -> 
 
     # --- 3. 月が存在する出張日を勤怠と照合 ---
     leave_dates: list = []          # 休暇/欠勤に出張計上
+    leave_kinds: dict = {}          # 日付 -> 申請内容 (有休/欠勤 等)
     corroborated_dates: list = []   # 在席/休日出勤/移動ありで裏付け
     no_record_dates: list = []      # 月はあるが勤怠行が無い (勤怠未入力)
 
@@ -174,13 +175,18 @@ def check_trip_reality(r: ExpenseReport, att: AttendanceLookup, cfg: Config) -> 
         # 休暇 (PRESENCE_LEAVE) または申請内容に 欠勤 → 休暇日に出張計上
         ac = day.application_content or ""
         if day.presence == PRESENCE_LEAVE or "欠勤" in ac:
+            # 2026-08-07 客先指摘: 「休暇日」だと休日 (土日祝) と混同されるため,
+            # どの申請で休みになっているのかが分かるよう申請内容も保持する.
             leave_dates.append(d)
+            if ac:
+                leave_kinds[d] = ac
         elif day.presence in _PRESENCE_CORROBORATE or _has_move_record(day):
             corroborated_dates.append(d)
         else:
             # 非労働日/不明など → 裏付けにも休暇にもならない
             no_record_dates.append(d)
 
+    evidence["leave_kinds"] = {d.isoformat(): k for d, k in leave_kinds.items()}
     evidence["leave_dates"] = [d.isoformat() for d in leave_dates]
     evidence["corroborated_dates"] = [d.isoformat() for d in corroborated_dates]
     evidence["no_record_dates"] = [d.isoformat() for d in no_record_dates]
@@ -188,13 +194,18 @@ def check_trip_reality(r: ExpenseReport, att: AttendanceLookup, cfg: Config) -> 
     # --- 4. 総合判定 ---
     # (a) 休暇日に出張計上 → NG
     if leave_dates:
-        days_s = ", ".join(d.isoformat() for d in leave_dates)
+        days_s = ", ".join(
+            f"{d.isoformat()}({leave_kinds[d]})" if d in leave_kinds else d.isoformat()
+            for d in leave_dates
+        )
         return CheckResult(
             status=NG,
-            detail=f"休暇日に出張計上({days_s})。勤怠上は休暇/欠勤の日に出張明細あり。",
+            detail=f"休暇取得日に出張を計上({days_s})。"
+                   f"平日であっても勤怠に休暇/欠勤の申請があるため出張実態と整合しません。",
             evidence=evidence,
-            suggestion=f"伝票No.{r.voucher_no}({period}): {days_s}は勤怠上 休暇/欠勤 です。"
-                       f"出張実態と整合しないため、日付の誤りか休暇申請の取消をご確認ください。",
+            suggestion=f"伝票No.{r.voucher_no}({period}): {days_s}は勤怠上 休暇/欠勤 の申請が"
+                       f"入っています。出張実態と整合しないため、日付の誤りか休暇申請の"
+                       f"取消をご確認ください。",
         )
 
     # (b) 裏付けあり かつ 全到着地が突合済 → OK

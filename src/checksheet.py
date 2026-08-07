@@ -223,9 +223,20 @@ def compute_allowances(r: ExpenseReport, perdiem_master: dict | None = None,
         perdiem = sum(leg.amount for leg in r.legs if leg.allowance_cd_perdiem)
         stay = sum(leg.amount for leg in r.legs if leg.allowance_cd_stay)
 
+    # 滞在費補助はコードによって単価が異なる (2026-08-07 客先提供の別表).
+    #   013/016/019 → 食事代先方/会社負担   022〜027 → 特例   それ以外 → 通常
+    stay_codes = {leg.allowance_cd_stay for leg in r.legs if leg.allowance_cd_stay}
+    if stay_codes & {"013", "016", "019"}:
+        stay_kind = "滞在補助費(食事代先方/会社負担)"
+    elif stay_codes & {"022", "023", "024", "025", "026", "027"}:
+        stay_kind = "滞在補助費(特例)"
+    else:
+        stay_kind = "滞在補助費"
+
     return {
         "perdiem": perdiem,
         "stay": stay,
+        "stay_kind": stay_kind,
         "trip_days": trip_days,
         "nights": nights,
         "perdiem_unit": (perdiem // trip_days) if (perdiem and trip_days) else None,
@@ -452,8 +463,10 @@ def _work_window_verdict(exp_pair: tuple, att_pair: tuple, ok_minutes: int) -> t
     """
     es, ee = exp_pair
     as_, ae = att_pair
+    # 2026-08-07 客先指摘: この窓は移動ではなく「作業･打合せ」を見るため,
+    # 「移動なし」ではなく作業の有無が分かる表記にする.
     if es is None and ee is None and as_ is None and ae is None:
-        return "移動なし", OK
+        return "作業なし", OK
     if as_ is None and ae is None:
         return "勤怠打刻なし", UNVERIFIABLE
     if es is None and ee is None:
@@ -468,7 +481,9 @@ def _work_window_verdict(exp_pair: tuple, att_pair: tuple, ok_minutes: int) -> t
     over_before = max(0, _m(as_) - _m(es))   # 出勤前に作業していた分
     over_after = max(0, _m(ee) - _m(ae))     # 退勤後に作業していた分
     if max(over_before, over_after) <= ok_minutes:
-        return "勤務時間内", OK
+        # 2026-08-07 客先指摘:「勤務時間内」だと定時 (9:00〜17:30) の内側と
+        # 誤解されるため, 何と比べた結果なのかが分かる表記にする.
+        return "打刻内に収まる", OK
     parts = []
     if over_before:
         parts.append(f"出勤前{over_before // 60}:{over_before % 60:02d}")

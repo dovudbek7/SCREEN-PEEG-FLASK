@@ -315,8 +315,11 @@ def _check_rules(r: ExpenseReport, cfg: Config,
     # 伝票のホテル関連明細を合算し, 泊数で割った額を1泊分として上限と比較する。
     # 宿泊税・入湯税を含めるのは 2026-07-07 客先確認による。
     hotel_limits = limits.get("ホテル代", {})
-    hotel_legs = [lg for lg in r.legs
-                  if lg.transport in ("ﾎﾃﾙ", "ホテル", "宿泊税", "入湯税")]
+    # 2026-08-07 客先指摘への対応: 宿泊税・入湯税は自治体が定める法定の税で,
+    # 都道府県・市区町村ごとに税額が異なり, 本人が選べる費用ではない.
+    # 旅費規定の「宿泊基準額」は宿泊料そのものに対する上限であるため,
+    # 上限判定からは税を除く (宿泊費の表示額には従来どおり含める).
+    hotel_legs = [lg for lg in r.legs if lg.transport in ("ﾎﾃﾙ", "ホテル")]
     if hotel_limits and hotel_legs:
         hotel_total = sum(lg.amount or 0 for lg in hotel_legs)
         nights = 1
@@ -324,8 +327,7 @@ def _check_rules(r: ExpenseReport, cfg: Config,
             nights = max(1, (r.date_max - r.date_min).days)
         per_night = hotel_total // nights
         prefecture = next((lg.dest_prefecture for lg in r.legs if lg.dest_prefecture), None)
-        leg_no = next((lg.leg_no for lg in hotel_legs
-                       if lg.transport in ("ﾎﾃﾙ", "ホテル")), hotel_legs[0].leg_no)
+        leg_no = hotel_legs[0].leg_no
         if per_night > 0:
             _check_hotel(leg_no, per_night, prefecture, grade,
                          hotel_limits, overs, needs_check)
@@ -343,8 +345,9 @@ def _check_rules(r: ExpenseReport, cfg: Config,
                                    overs, needs_check)
         unit = allowances.get("stay_unit")
         if unit:
-            _check_grade_allowance(0, "滞在補助費(1泊あたり)", unit,
-                                   limits.get("滞在補助費", {}), grade,
+            kind = allowances.get("stay_kind", "滞在補助費")
+            _check_grade_allowance(0, f"{kind}(1泊あたり)", unit,
+                                   limits.get(kind, {}), grade,
                                    overs, needs_check)
 
     statuses: list[str] = []
