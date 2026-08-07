@@ -700,6 +700,7 @@ I18N = {
             "一致":                           "Mos keladi",
             "データなし":                     "Ma'lumot yo'q",
             "移動なし":                       "Harakat yo'q",
+            "宿泊なし":                       "Tunash yo'q",
             "勤務時間内":                     "Ish vaqti ichida",
             "勤怠打刻なし":                   "Davomatda belgi yo'q",
             "精算計上なし":                   "Arizada yo'q",

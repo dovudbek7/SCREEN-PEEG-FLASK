@@ -763,9 +763,12 @@ def build_check_sheet(reports, employees, customers, approver_rules,
         period = f"{_d(r.date_min)}〜{_d(r.date_max)}"
         detail = _trip_detail_summary(r, att, perdiem_master, per_day_codes)
         nights = detail.pop("宿泊泊数")
-        lodging_label = ""
+        # 2026-08-07 客先質問「チェックが入っていないのはバグか」への対応:
+        # 空欄だと判定漏れに見えるため, 宿泊が無い場合は「宿泊なし」と明示する.
         if nights:
             lodging_label = f"{nights}泊・" + ("整合" if spec_status["金額規程"] == OK else "要確認")
+        else:
+            lodging_label = "宿泊なし"
 
         # --- 01_一次承認チェック ---
         # 列順: No./伝票No./入力者名/社員番号/所属/承認状態 →
